@@ -185,7 +185,7 @@ stepCV <- function(formula, data, method, trControl, max.deg=2, add.log=FALSE, m
   while(fine==0) {
     auxmse <- c()
     auxform <- auxmod <- list()
-    nomi <- extrVar(formOK)
+    nomi <- extrVar(formOK,data=data)
     for(i in 1:length(nomi)) {
       if(quiet==F) cat('\r',"Step ",ind,". Checked ",i,"/",length(nomi)," variables",sep="")
       auxform[[i]] <- update(formOK, formula(paste0(".~.-",nomi[i])))
@@ -207,7 +207,7 @@ stepCV <- function(formula, data, method, trControl, max.deg=2, add.log=FALSE, m
     ind <- ind+1
     if(quiet==F) cat("\n")
     }
-  if(quiet==F) cat("End with ",length(extrVar(formOK))," variables",sep="","\n")
+  if(quiet==F) cat("End with ",length(extrVar(formOK,data=data))," variables",sep="","\n")
   modOK
   }
 
