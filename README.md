@@ -21,4 +21,4 @@ New general-purpose functions:
 - `trainPlot`: graphic displaying any one metric as a function of any one hyperparameter
 - `importancePlot`: graphic of variable importance for objects of class `rpart` and `randomForest`
 - `rocPlot`: graphic displaying the roc curve (only for classification tasks)
-- `scatPlot`: graphic displaying the scatterplot of observed versus predicted values (only for regression tasks)
+- `predPlot`: graphic displaying the scatterplot of observed versus predicted values (only for regression tasks)
