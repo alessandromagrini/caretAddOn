@@ -1,4 +1,4 @@
-export(loglm_mean,loglm_median,svm_radial,customSummaryClass,customSummaryReg,addTerms,stepCV,bestTune,enetCoef,trainPlot,importancePlot)
+export(loglm_mean,loglm_median,svm_radial,customSummaryClass,customSummaryReg,addTerms,stepCV,bestTune,enetCoef,trainPlot,importancePlot,rocPlot,predPlot)
 
 importFrom("graphics", "abline", "axis", "box", "grid", "points")
 importFrom("stats", "cor", "na.omit", "predict", "terms", "update", "var")
