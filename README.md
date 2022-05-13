@@ -17,6 +17,8 @@ New general-purpose functions:
 - `addTerms`: addition of polynomial and/or logarithmic terms to a formula
 - `stepCV`: stepwise pruning of explanatory variables through cross-validation
 - `bestTune`: extraction of the best tuning of hyperparameters
-- `enetCoef`: extraction of coefficients at best tuning of hyperparameters for an object of class 'glmnet'
-- `trainPlot`: graphic displaying any onr metric as a function of any one hyperparameter
-- `importancePlot`: graphic of variable importance for objects of class 'rpart' and 'randomForest'
+- `enetCoef`: extraction of coefficients at best tuning of hyperparameters for an object of class `glmnet`
+- `trainPlot`: graphic displaying any one metric as a function of any one hyperparameter
+- `importancePlot`: graphic of variable importance for objects of class `rpart` and `randomForest`
+- `rocPlot`: graphic displaying the roc curve (only for classification tasks)
+- `scatPlot`: graphic displaying the scatterplot of observed versus predicted values (only for regression tasks)
