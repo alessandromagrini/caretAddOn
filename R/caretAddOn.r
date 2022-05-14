@@ -223,7 +223,7 @@ importancePlot <- function(caret_fit, ylab="", add.grid=TRUE, cex.names=0.9, dis
     } else {
     stop("Not available for class '",class(mod),"'",sep="")  
     }
-  impS <- (imp-min(imp))/(max(imp)-min(imp))
+  impS <- imp/sum(imp)
   impOK <- sort(impS)
   #if(is.null(ylab)) ylab <- "Mean decrease in impurity"
   plot(impOK, type="n", xaxt="n", xlab="", ylab=ylab, ...)
