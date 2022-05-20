@@ -285,7 +285,7 @@ cookDist <- function(caret_fit, plot=TRUE, k=2, cut.color=2, ...) {
   }
 
 # scatterplot with regression curve
-scatPlot <- function(y.name, x.name, data, log.y=FALSE, log.x=FALSE, deg=1, orig.scale=TRUE, xlab=NULL, ylab=NULL, add.grid=TRUE, line.lty=1, line.lwd=1, line.col=2, ...) {
+scatPlot <- function(y.name, x.name, data, log.y=FALSE, log.x=FALSE, deg=1, orig.scale=TRUE, xlab=NULL, ylab=NULL, add.grid=TRUE, line.lty=1, line.lwd=1, line.col=2, add=FALSE, ...) {
   y <- data[,y.name]
   x <- data[,x.name]
   if(log.y) {
@@ -312,12 +312,12 @@ scatPlot <- function(y.name, x.name, data, log.y=FALSE, log.x=FALSE, deg=1, orig
   xpred <- predict(mod, data.frame(x=xseq))
   if(orig.scale) {
     if(log.y) xpred <- exp(xpred)
-    plot(x, y, ylab=ylab, xlab=xlab, type="n", ...)
+    if(add==F) plot(x, y, ylab=ylab, xlab=xlab, type="n", ...)
     if(add.grid) grid()
     points(x, y)
     lines(xseq, xpred, col=line.col, lwd=line.lwd, lty=line.lty)
     } else {
-    plot(x0, y0, ylab=ylab, xlab=xlab, type="n", ...)
+    if(add==F) plot(x0, y0, ylab=ylab, xlab=xlab, type="n", ...)
     if(add.grid) grid()
     points(x0, y0)
     if(log.x) xseq0 <- log(xseq) else xseq0 <- xseq
