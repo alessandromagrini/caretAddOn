@@ -133,9 +133,10 @@ bestTune <- function(caret_fit) {
   }
 
 # get coefficients at best tuning for an elastic net
-enetCoef <- function(enet_caret_fit) {
-  as.matrix(predict(enet_caret_fit$finalModel, type="coefficients",
-    s=enet_caret_fit$bestTune$lambda))[,1]
+enetCoef <- function(caret_fit) {
+  if(identical(caret_fit$method,"glmnet")==F) stop("Implemented for method 'glmnet' only",call.=F)
+  as.matrix(predict(caret_fit$finalModel, type="coefficients",
+    s=caret_fit$bestTune$lambda))[,1]
   }
 
 # metric versus parameter plot
@@ -221,7 +222,7 @@ importancePlot <- function(caret_fit, ylab="", add.grid=TRUE, cex.names=0.9, dis
     } else if(identical(class(mod),"rpart")) {
     imp <- mod$variable.importance
     } else {
-    stop("Not available for class '",class(mod),"'",sep="")  
+    stop("Implemented for methods 'rpart' and 'rf' only",call.=F)
     }
   impS <- imp/sum(imp)
   impOK <- sort(impS)
@@ -234,18 +235,21 @@ importancePlot <- function(caret_fit, ylab="", add.grid=TRUE, cex.names=0.9, dis
   }
 
 # roc curve
-rocPlot <- function(caret_fit, ...) {
+rocPlot <- function(caret_fit, quiet=TRUE, ...) {
+  if(identical(caret_fit$modelType,"Classification")==F & length(caret_fit$levels)==2) stop("Implemented for binary classification tasks only",call.=F)
   tab <- caret_fit$pred
-  #pred <- do.call(c,lapply(split(tab[,x$levels[2]],tab[,"rowIndex"]),mean))
-  #obs <- do.call(c,lapply(split(tab[,"obs"],tab[,"rowIndex"]),function(z){z[1]}))
+  pred <- do.call(c,lapply(split(tab[,caret_fit$levels[2]],tab[,"rowIndex"]),mean))
+  obs <- do.call(c,lapply(split(tab[,"obs"],tab[,"rowIndex"]),function(z){z[1]}))
   suppressWarnings(
-    rocObj <- pROC::roc(response=tab[,"obs"], predictor=tab[,caret_fit$levels[2]], quiet=T)
+    #rocObj <- pROC::roc(response=tab[,"obs"], predictor=tab[,caret_fit$levels[2]], quiet=quiet, ...)
+    rocObj <- pROC::roc(response=obs, predictor=pred, quiet=quiet, ...)
     )
   plot(rocObj, ...)
   }
 
 # observed versus predicted values
 predPlot <- function(caret_fit, cex=0.8, col=1, xlab="observed", ylab="predicted", add.grid=TRUE, ...) {
+  if(identical(caret_fit$modelType,"Regression")==F) stop("Implemented for regression tasks only",call.=F)
   tab <- caret_fit$pred
   pred <- do.call(c,lapply(split(tab[,"pred"],tab[,"rowIndex"]),mean))
   obs <- do.call(c,lapply(split(tab[,"obs"],tab[,"rowIndex"]),function(z){z[1]}))  
@@ -254,4 +258,69 @@ predPlot <- function(caret_fit, cex=0.8, col=1, xlab="observed", ylab="predicted
   points(obs, pred, cex=cex, col=col)
   abline(0,1)
   box()
+  }
+
+# compute cook's distance
+cookDist <- function(caret_fit, plot=TRUE, k=2, cut.color=2, ...) {
+  tab <- caret_fit$pred
+  if(identical(caret_fit$modelType,"Regression")) {
+    pred <- do.call(c,lapply(split(tab[,"pred"],tab[,"rowIndex"]),mean))
+    obs <- do.call(c,lapply(split(tab[,"obs"],tab[,"rowIndex"]),function(z){z[1]}))  
+    } else if(length(caret_fit$levels)==2) {
+    tab <- caret_fit$pred
+    pred <- do.call(c,lapply(split(tab[,caret_fit$levels[2]],tab[,"rowIndex"]),mean))
+    obs <- do.call(c,lapply(split(tab[,"obs"],tab[,"rowIndex"]),function(z){z[1]}))
+    } else {
+    stop("Not implemented for multiple classification",call.=F)  
+    }
+  distance <- cooks.distance(lm(pred~obs))
+  q1 <- quantile(distance,prob=0.25)
+  q3 <- quantile(distance,prob=0.75)
+  cut <- q3+k*(q3-q1)
+  if(plot) {
+    plot(distance, ...)
+    abline(h=cut, col=cut.color)
+    }
+  sort(distance[which(distance>cut)], decreasing=T)
+  }
+
+# scatterplot with regression curve
+scatPlot <- function(y.name, x.name, data, log.y=FALSE, log.x=FALSE, deg=1, orig.scale=TRUE, xlab=NULL, ylab=NULL, add.grid=TRUE, line.lty=1, line.lwd=1, line.col=2, ...) {
+  y <- data[,y.name]
+  x <- data[,x.name]
+  if(log.y) {
+    fy <- "log(y)"
+    y0 <- log(y)
+    if(orig.scale==F & is.null(ylab)) ylab <- paste0("log(",y.name,")")
+    } else {
+    fy <- "y"
+    y0 <- y
+    }
+  if(log.x) {
+    fx <- "log(x)"
+    x0 <- log(x)
+    if(orig.scale==F & is.null(xlab)) xlab <- paste0("log(",x.name,")")
+    } else {
+    fx <- "x"
+    x0 <- x
+    }
+  if(is.null(ylab)) ylab <- y.name
+  if(is.null(xlab)) xlab <- x.name
+  xseq <- seq(min(x,na.rm=T),max(x,na.rm=T),length=100)
+  form <- paste0(fy,"~poly(",fx,",deg)")
+  mod <- lm(formula(form))
+  xpred <- predict(mod, data.frame(x=xseq))
+  if(orig.scale) {
+    if(log.y) xpred <- exp(xpred)
+    plot(x, y, ylab=ylab, xlab=xlab, type="n", ...)
+    if(add.grid) grid()
+    points(x, y)
+    lines(xseq, xpred, col=line.col, lwd=line.lwd, lty=line.lty)
+    } else {
+    plot(x0, y0, ylab=ylab, xlab=xlab, type="n", ...)
+    if(add.grid) grid()
+    points(x0, y0)
+    if(log.x) xseq0 <- log(xseq) else xseq0 <- xseq
+    lines(xseq0, xpred, col=line.col, lwd=line.lwd, lty=line.lty)
+    }
   }
