@@ -23,3 +23,4 @@ New general-purpose functions:
 - `rocPlot`: graphic displaying the roc curve (only for binary classification)
 - `predPlot`: graphic displaying the scatterplot of observed versus predicted values (only for regression tasks)
 - `cookDist`: Cook's distance between observed and predicted values for outlier detection (not implemented for multiple classification)
+- `scatPlot`: graphic displaying the scatterplot between two quantitative variables with a regression curve
