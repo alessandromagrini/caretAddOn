@@ -235,14 +235,14 @@ importancePlot <- function(caret_fit, ylab="", add.grid=TRUE, cex.names=0.9, dis
   }
 
 # roc curve
-rocPlot <- function(caret_fit, quiet=TRUE, ...) {
+rocPlot <- function(caret_fit, lwd=2, quiet=TRUE, ...) {
   if(identical(caret_fit$modelType,"Classification")==F & length(caret_fit$levels)==2) stop("Implemented for binary classification tasks only",call.=F)
   tab <- caret_fit$pred
   pred <- do.call(c,lapply(split(tab[,caret_fit$levels[2]],tab[,"rowIndex"]),mean))
   obs <- do.call(c,lapply(split(tab[,"obs"],tab[,"rowIndex"]),function(z){z[1]}))
   suppressWarnings(
-    #rocObj <- pROC::roc(response=tab[,"obs"], predictor=tab[,caret_fit$levels[2]], quiet=quiet, ...)
-    rocObj <- pROC::roc(response=obs, predictor=pred, quiet=quiet, ...)
+    #rocObj <- pROC::roc(response=tab[,"obs"], predictor=tab[,caret_fit$levels[2]], lwd=lwd, quiet=quiet, ...)
+    rocObj <- pROC::roc(response=obs, predictor=pred, lwd=lwd, quiet=quiet, ...)
     )
   plot(rocObj, ...)
   }
@@ -260,8 +260,8 @@ predPlot <- function(caret_fit, cex=0.8, col=1, xlab="observed", ylab="predicted
   box()
   }
 
-# compute cook's distance
-cookDist <- function(caret_fit, plot=TRUE, k=2, cut.color=2, ...) {
+# cook's distance
+cookDist <- function(caret_fit, plot=TRUE, print=FALSE, cex=0.6, ...) {
   tab <- caret_fit$pred
   if(identical(caret_fit$modelType,"Regression")) {
     pred <- do.call(c,lapply(split(tab[,"pred"],tab[,"rowIndex"]),mean))
@@ -274,53 +274,64 @@ cookDist <- function(caret_fit, plot=TRUE, k=2, cut.color=2, ...) {
     stop("Not implemented for multiple classification",call.=F)  
     }
   distance <- cooks.distance(lm(pred~obs))
-  q1 <- quantile(distance,prob=0.25)
-  q3 <- quantile(distance,prob=0.75)
-  cut <- q3+k*(q3-q1)
+  #q1 <- quantile(distance,prob=0.25)
+  #q3 <- quantile(distance,prob=0.75)
+  #cut <- q3+k*(q3-q1)
   if(plot) {
-    plot(distance, ...)
-    abline(h=cut, col=cut.color)
+    plot(distance, type="n", ...)
+    text(distance, labels=names(distance), cex=cex)
+    #abline(h=cut, col=cut.color)
     }
-  sort(distance[which(distance>cut)], decreasing=T)
+  #if(print) sort(distance[which(distance>cut)], decreasing=T)
+  if(print) sort(distance, decreasing=T)
   }
 
 # scatterplot with regression curve
-scatPlot <- function(y.name, x.name, data, log.y=FALSE, log.x=FALSE, deg=1, orig.scale=TRUE, xlab=NULL, ylab=NULL, add.grid=TRUE, line.lty=1, line.lwd=1, line.col=2, add=FALSE, ...) {
+scatPlot <- function(y.name, x.name, data, log.y=FALSE, log.x=FALSE, deg=1, orig.scale=TRUE, xlab=NULL, ylab=NULL, add.grid=TRUE, points.col="grey40", points.cex=0.6, line.lty=1, line.lwd=1, line.col=1, add=FALSE, ...) {
   y <- data[,y.name]
   x <- data[,x.name]
-  if(log.y) {
-    fy <- "log(y)"
-    y0 <- log(y)
-    if(orig.scale==F & is.null(ylab)) ylab <- paste0("log(",y.name,")")
+  if(is.numeric(x)&length(unique(na.omit(x)))>2) {
+    if(sum(y<=0)>0) log.y <- F
+    if(sum(x<=0)>0) log.x <- F
+    if(log.y) {
+      fy <- "log(y)"
+      y0 <- log(y)
+      if(orig.scale==F & is.null(ylab)) ylab <- paste0("log(",y.name,")")
+      } else {
+      fy <- "y"
+      y0 <- y
+      }
+    if(log.x) {
+      fx <- "log(x)"
+      x0 <- log(x)
+      if(orig.scale==F & is.null(xlab)) xlab <- paste0("log(",x.name,")")
+      } else {
+      fx <- "x"
+      x0 <- x
+      }
+    if(is.null(ylab)) ylab <- y.name
+    if(is.null(xlab)) xlab <- x.name
+    xseq <- seq(min(x,na.rm=T),max(x,na.rm=T),length=100)
+    form <- paste0(fy,"~poly(",fx,",deg)")
+    mod <- lm(formula(form))
+    xpred <- predict(mod, data.frame(x=xseq))
+    if(orig.scale) {
+      if(log.y) xpred <- exp(xpred)
+      if(add==F) plot(x, y, ylab=ylab, xlab=xlab, type="n", ...)
+      if(add.grid) grid()
+      points(x, y, col=points.col, cex=points.cex)
+      lines(xseq, xpred, col=line.col, lwd=line.lwd, lty=line.lty)
+      } else {
+      if(add==F) plot(x0, y0, ylab=ylab, xlab=xlab, type="n", ...)
+      if(add.grid) grid()
+      points(x0, y0, col=points.col, cex=points.cex)
+      if(log.x) xseq0 <- log(xseq) else xseq0 <- xseq
+      lines(xseq0, xpred, col=line.col, lwd=line.lwd, lty=line.lty)
+      }
+    box()
     } else {
-    fy <- "y"
-    y0 <- y
-    }
-  if(log.x) {
-    fx <- "log(x)"
-    x0 <- log(x)
-    if(orig.scale==F & is.null(xlab)) xlab <- paste0("log(",x.name,")")
-    } else {
-    fx <- "x"
-    x0 <- x
-    }
-  if(is.null(ylab)) ylab <- y.name
-  if(is.null(xlab)) xlab <- x.name
-  xseq <- seq(min(x,na.rm=T),max(x,na.rm=T),length=100)
-  form <- paste0(fy,"~poly(",fx,",deg)")
-  mod <- lm(formula(form))
-  xpred <- predict(mod, data.frame(x=xseq))
-  if(orig.scale) {
-    if(log.y) xpred <- exp(xpred)
-    if(add==F) plot(x, y, ylab=ylab, xlab=xlab, type="n", ...)
-    if(add.grid) grid()
-    points(x, y)
-    lines(xseq, xpred, col=line.col, lwd=line.lwd, lty=line.lty)
-    } else {
-    if(add==F) plot(x0, y0, ylab=ylab, xlab=xlab, type="n", ...)
-    if(add.grid) grid()
-    points(x0, y0)
-    if(log.x) xseq0 <- log(xseq) else xseq0 <- xseq
-    lines(xseq0, xpred, col=line.col, lwd=line.lwd, lty=line.lty)
+    if(is.null(ylab)) ylab <- y.name
+    if(is.null(xlab)) xlab <- x.name
+    plot(factor(x), y, xlab=xlab, ylab=ylab, ...)  
     }
   }
