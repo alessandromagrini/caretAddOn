@@ -14,6 +14,7 @@ New custom summaries:
 - `customSummaryReg`: summary for regression taks, including RMSE, MAE, MAPE and R-squared
 
 New general-purpose functions:
+- `scatPlot`: graphic displaying the scatterplot between two quantitative variables with a regression curve
 - `addTerms`: addition of polynomial and/or logarithmic terms to a formula
 - `stepCV`: stepwise pruning of explanatory variables through cross-validation
 - `bestTune`: extraction of the best tuning of hyperparameters
@@ -23,4 +24,3 @@ New general-purpose functions:
 - `rocPlot`: graphic displaying the roc curve (only for binary classification)
 - `predPlot`: graphic displaying the scatterplot of observed versus predicted values (only for regression tasks)
 - `cookDist`: Cook's distance between observed and predicted values for outlier detection (not implemented for multiple classification)
-- `scatPlot`: graphic displaying the scatterplot between two quantitative variables with a regression curve
