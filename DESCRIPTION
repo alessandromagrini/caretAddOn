@@ -6,8 +6,8 @@ Date: 2022-05-20
 Author: Alessandro Magrini
 Maintainer: Alessandro Magrini <alessandro.magrini@unifi.it>
 Description: Additional functionalities for the 'caret' package, including new models, new summaries, and new general-purpose functions.
-Depends: R (>= 3.5.0), caret, e1071, pROC, randomForest
+Depends: R (>= 3.5.0), caret, e1071, pROC, randomForest, corrgram
 Imports: graphics, stats
 License: GPL-2
 NeedsCompilation: no
-Packaged: 2022-05-24 15:11:36 UTC; Alessandro
+Packaged: 2022-05-26 15:41:57 UTC; Alessandro

@@ -335,3 +335,9 @@ scatPlot <- function(y.name, x.name, data, log.y=FALSE, log.x=FALSE, deg=1, orig
     plot(factor(x), y, xlab=xlab, ylab=ylab, ...)  
     }
   }
+
+# correlogram
+corPlot <- function(data, upper.panel=panel.conf, ...) {
+  dataOK <- model.matrix(~.,data=data)[,-1,drop=F]
+  corrgram(dataOK, upper.panel=upper.panel, ...)
+  }

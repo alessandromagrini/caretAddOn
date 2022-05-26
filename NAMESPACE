@@ -1,7 +1,8 @@
-export(loglm_mean,loglm_median,svm_radial,customSummaryClass,customSummaryReg,addTerms,stepCV,bestTune,enetCoef,trainPlot,importancePlot,rocPlot,predPlot,cookDist,scatPlot)
+export(loglm_mean,loglm_median,svm_radial,customSummaryClass,customSummaryReg,addTerms,stepCV,bestTune,enetCoef,trainPlot,importancePlot,rocPlot,predPlot,cookDist,scatPlot,corPlot)
 
 importFrom("graphics", "abline", "axis", "box", "grid", "points", "lines", "text")
-importFrom("stats", "cor", "na.omit", "predict", "terms", "update", "var", "cooks.distance", "formula", "lm", "quantile")
+importFrom("stats", "model.matrix", "cor", "na.omit", "predict", "terms", "update", "var", "cooks.distance", "formula", "lm", "quantile")
+importFrom("corrgram", "corrgram", "panel.conf")
 importFrom("caret", "train")
 importFrom("randomForest", "importance")
 importFrom("pROC","roc")
