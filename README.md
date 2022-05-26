@@ -4,7 +4,8 @@ __Additional functionalities for the R package 'caret'__
 This package includes additional functionalities for the `caret` package, including new models, new summaries, and new general-purpose functions.
 Reference for the `caret` package:
 
-Max Kuhn (2022). caret: Classification and Regression Training. R package version 6.0-92. <a href="https://CRAN.R-project.org/package=caret">https://CRAN.R-project.org/package=caret</a>; <a href="https://github.com/topepo/caret">https://github.com/topepo/caret</a>
+Max Kuhn (2022). caret: Classification and Regression Training. R package version 6.0-92. <a href="https://CRAN.R-project.org/package=caret">https://CRAN.R-project.org/package=caret</a>
+Github page: <a href="https://github.com/topepo/caret">https://github.com/topepo/caret</a>
 
 New models:
 - `loglm_mean`: linear regression on log transformed response variable, with prediction made through the conditional expected value
