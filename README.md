@@ -2,7 +2,9 @@
 __Additional functionalities for the R package 'caret'__
 
 The `caretAddOn` package includes additional functionalities for the `caret` package, including new models, new summaries, and new general-purpose functions.
-It is conceived to be used by students of my academic teachings on supervised learning.
+Reference for the `caret' package:
+
+Max Kuhn (2022). caret: Classification and Regression Training. R package version 6.0-92. <a href="https://CRAN.R-project.org/package=caret">https://CRAN.R-project.org/package=caret</a>
 
 New models:
 - `loglm_mean`: linear regression on log transformed response variable, with prediction made through the conditional expected value
