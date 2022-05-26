@@ -14,13 +14,14 @@ New custom summaries:
 - `customSummaryReg`: summary for regression taks, including RMSE, MAE, MAPE and R-squared
 
 New general-purpose functions:
-- `scatPlot`: graphic displaying the scatterplot between two quantitative variables with a regression curve
+- `corPlot`: correlogram
+- `scatPlot`: scatterplot between two quantitative variables with superimposed regression curve (linear, polynomial, log-linear, log-log)
 - `addTerms`: addition of polynomial and/or logarithmic terms to a formula
 - `stepCV`: stepwise pruning of explanatory variables through cross-validation
-- `bestTune`: extraction of the best tuning of hyperparameters
-- `enetCoef`: extraction of coefficients at best tuning of hyperparameters for an object of class `glmnet`
+- `bestTune`: best tuning of hyperparameters
+- `enetCoef`: coefficients at best tuning of hyperparameters for an object of class `glmnet`
 - `trainPlot`: graphic displaying any one metric as a function of any one hyperparameter
 - `importancePlot`: graphic of variable importance for objects of class `rpart` and `randomForest`
-- `rocPlot`: graphic displaying the roc curve (only for binary classification)
-- `predPlot`: graphic displaying the scatterplot of observed versus predicted values (only for regression tasks)
-- `cookDist`: Cook's distance between observed and predicted values for outlier detection (not implemented for multiple classification)
+- `rocPlot`: roc curve (only for binary classification)
+- `predPlot`: scatterplot of observed versus predicted values (only for regression tasks)
+- `cookDist`: Cook's distance between observed and predicted values (not implemented for multiple classification)
