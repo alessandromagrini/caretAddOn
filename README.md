@@ -1,7 +1,7 @@
 # caretAddOn
 __Additional functionalities for the R package 'caret'__
 
-This package includes additional functionalities for the caret package, including new models, new summaries, and new general-purpose functions.
+The `caretAddOn` package includes additional functionalities for the `caret` package, including new models, new summaries, and new general-purpose functions.
 It is conceived to be used by students of my academic teachings on supervised learning.
 
 New models:
