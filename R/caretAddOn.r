@@ -1,5 +1,5 @@
 # linear regression in log scale - mean
-loglm_mean <- getModelInfo("lm", regex = FALSE)[[1]]
+loglm_mean <- caret::getModelInfo("lm", regex = FALSE)[[1]]
 loglm_mean$fit <- function(x, y, wts, param, lev, last, classProbs, ...) {
   dat <- if(is.data.frame(x)) x else as.data.frame(x, stringsAsFactors = TRUE)
   dat$.outcome <- log(y)
@@ -26,6 +26,16 @@ loglm_median <- loglm_mean
 loglm_median$predict <- function(modelFit, newdata, submodels = NULL) {
   if(!is.data.frame(newdata)) newdata <- as.data.frame(newdata, stringsAsFactors = TRUE)
   exp(predict(modelFit, newdata))
+  }
+
+# svm linear model
+svm_linear <- caret::getModelInfo("svmLinear2", regex = FALSE)[[1]]
+svm_linear$varImp <- function(object, ...) {
+  varImps <- abs(t(t(object$coefs)%*%object$SV))
+  out <- data.frame(varImps)
+  colnames(out) <- "Overall"
+  if(!is.null(names(varImps))) rownames(out) <- names(varImps)
+  out
   }
 
 # svm radial model
@@ -65,7 +75,13 @@ svm_radial <- list(
     out <- predict(modelFit, newdata, probability = TRUE)
     attr(out, "probabilities")
     },
-  varImp = NULL,
+  varImp = function(object, ...) {
+    varImps <- abs(t(t(object$coefs)%*%object$SV))
+    out <- data.frame(varImps)
+    colnames(out) <- "Overall"
+    if(!is.null(names(varImps))) rownames(out) <- names(varImps)
+    out
+    },
   predictors = function(x, ...){
     out <- if(!is.null(x$terms)) predictors.terms(x$terms) else x$xNames
     if(is.null(out)) out <- names(attr(x, "scaling")$x.scale$`scaled:center`)
@@ -191,7 +207,7 @@ stepCV <- function(formula, data, method, trControl, max.deg=2, add.log=FALSE, m
       if(quiet==F) cat('\r',"Step ",ind,". Checked ",i,"/",length(nomi)," variables",sep="")
       auxform[[i]] <- update(formOK, formula(paste0(".~.-",nomi[i])))
       itrain <- suppressWarnings(
-        train(auxform[[i]], data=data, method=method, trControl=trControl, maximize=maximize, ...)
+        caret::train(auxform[[i]], data=data, method=method, trControl=trControl, maximize=maximize, ...)
         )
       imse <- itrain$results[rownames(itrain$bestTune),itrain$perfNames[1]]
       auxmse[i] <- ifelse(maximize,-1,1)*imse
@@ -213,25 +229,19 @@ stepCV <- function(formula, data, method, trControl, max.deg=2, add.log=FALSE, m
   }
 
 # plot of variable importance
-importancePlot <- function(caret_fit, ylab="", add.grid=TRUE, cex.names=0.9, dist.names=0.5, ...) {
-  mod <- caret_fit$finalModel
-  if(identical(class(mod),"randomForest")) {
-    imp0 <- randomForest::importance(mod)
+importancePlot <- function(caret_fit, ylab="", add.grid=TRUE, cex.points=0.8, cex.names=0.8, dist.names=0.5, ...) {
+  imp0 <- tryCatch(caret::varImp(caret_fit)$importance,error=function(e){NULL})
+  if(!is.null(imp0)) {
     imp <- imp0[,1]
     names(imp) <- rownames(imp0)
-    } else if(identical(class(mod),"rpart")) {
-    imp <- mod$variable.importance
-    } else {
-    stop("Implemented for methods 'rpart' and 'rf' only",call.=F)
+    impS <- imp/sum(imp)
+    impOK <- sort(impS)
+    plot(impOK, type="n", xaxt="n", xlab="", ylab=ylab, ...)
+    if(add.grid) grid()
+    points(impOK, cex=cex.points)
+    axis(1, at=1:length(impOK), labels=names(impOK), las=2, cex.axis=cex.names, tick=F, mgp=c(3,dist.names,0))
+    box()
     }
-  impS <- imp/sum(imp)
-  impOK <- sort(impS)
-  #if(is.null(ylab)) ylab <- "Mean decrease in impurity"
-  plot(impOK, type="n", xaxt="n", xlab="", ylab=ylab, ...)
-  if(add.grid) grid()
-  points(impOK)
-  axis(1, at=1:length(impOK), labels=names(impOK), las=2, cex.axis=cex.names, tick=F, mgp=c(3,dist.names,0))
-  box()
   }
 
 # roc curve
@@ -261,29 +271,25 @@ predPlot <- function(caret_fit, cex=0.8, col=1, xlab="observed", ylab="predicted
   }
 
 # cook's distance
-cookDist <- function(caret_fit, plot=TRUE, print=FALSE, cex=0.6, ...) {
+cookDist <- function(caret_fit, plot=TRUE, print=TRUE, cex=0.6, ...) {
   tab <- caret_fit$pred
   if(identical(caret_fit$modelType,"Regression")) {
     pred <- do.call(c,lapply(split(tab[,"pred"],tab[,"rowIndex"]),mean))
     obs <- do.call(c,lapply(split(tab[,"obs"],tab[,"rowIndex"]),function(z){z[1]}))  
+    distance <- cooks.distance(lm(obs~pred))
     } else if(length(caret_fit$levels)==2) {
     tab <- caret_fit$pred
     pred <- do.call(c,lapply(split(tab[,caret_fit$levels[2]],tab[,"rowIndex"]),mean))
     obs <- do.call(c,lapply(split(tab[,"obs"],tab[,"rowIndex"]),function(z){z[1]}))
+    distance <- cooks.distance(glm(obs~pred, family="binomial"))
     } else {
     stop("Not implemented for multiple classification",call.=F)  
     }
-  distance <- cooks.distance(lm(pred~obs))
-  #q1 <- quantile(distance,prob=0.25)
-  #q3 <- quantile(distance,prob=0.75)
-  #cut <- q3+k*(q3-q1)
   if(plot) {
     plot(distance, type="n", ...)
     text(distance, labels=names(distance), cex=cex)
-    #abline(h=cut, col=cut.color)
     }
-  #if(print) sort(distance[which(distance>cut)], decreasing=T)
-  if(print) sort(distance, decreasing=T)
+  if(print) sort(boxplot(distance)$out, decreasing=T)
   }
 
 # scatterplot with regression curve
@@ -319,12 +325,12 @@ scatPlot <- function(y.name, x.name, data, log.y=FALSE, log.x=FALSE, deg=1, orig
       if(log.y) xpred <- exp(xpred)
       if(add==F) plot(x, y, ylab=ylab, xlab=xlab, type="n", ...)
       if(add.grid) grid()
-      points(x, y, col=points.col, cex=points.cex)
+      if(add==F) points(x, y, col=points.col, cex=points.cex)
       lines(xseq, xpred, col=line.col, lwd=line.lwd, lty=line.lty)
       } else {
       if(add==F) plot(x0, y0, ylab=ylab, xlab=xlab, type="n", ...)
       if(add.grid) grid()
-      points(x0, y0, col=points.col, cex=points.cex)
+      if(add==F) points(x0, y0, col=points.col, cex=points.cex)
       if(log.x) xseq0 <- log(xseq) else xseq0 <- xseq
       lines(xseq0, xpred, col=line.col, lwd=line.lwd, lty=line.lty)
       }
