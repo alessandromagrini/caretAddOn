@@ -10,6 +10,7 @@ Github page: <a href="https://github.com/topepo/caret">https://github.com/topepo
 New models:
 - `loglm_mean`: linear regression on log transformed response variable, with prediction made through the conditional expected value
 - `loglm_median`: linear regression on log transformed response variable, with prediction made through the conditional median
+- `svm_linear`: support vector machine/regression with linear kernel
 - `svm_radial`: support vector machine/regression with radial kernel
 
 New custom summaries:
