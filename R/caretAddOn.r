@@ -107,11 +107,9 @@ customSummaryClass <- function(data, lev = NULL, model = NULL) {
       d <- apply(youd,2,function(x){abs(x[1]-x[2])})
       youd <- youd[,which.min(d)]
       }
-    out <- c(#rocAUC,
-             #specificity(data[, "pred"], data[, "obs"], lev[1]),
-             #sensitivity(data[, "pred"], data[, "obs"], lev[2]),
-             rocObject$auc, unlist(bayes),unlist(youd)
-             )
+    if(youd[3]==Inf) youd[3] <- 1
+    if(youd[3]==-Inf) youd[3] <- 0
+    out <- c(rocObject$auc, unlist(bayes),unlist(youd))
     names(out) <- c("Accuracy","Spec","Sens","Spec_youden", "Sens_youden","cut_youden")
     out
     } else {
