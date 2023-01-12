@@ -29,5 +29,5 @@ New general-purpose functions:
 - `importancePlot`: graphic of variable importance for objects of class `rpart` and `randomForest`
 - `rocPlot`: roc curve (only for binary classification)
 - `predPlot`: scatterplot of observed versus predicted values (only for regression tasks)
-- `iErr`: individual prediction errors (only for regression tasks)
 - `cookDist`: Cook's distance between observed and predicted values (not implemented for multiple classification)
+- `iErr`: individual prediction errors (only for regression tasks)
