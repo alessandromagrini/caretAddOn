@@ -20,7 +20,7 @@ New custom summaries:
 
 New general-purpose functions:
 - `corPlot`: correlogram
-- `scatPlot`: scatterplot between two quantitative variables with superimposed regression curve (linear, polynomial, log-linear, log-log)
+- `scatPlot`: scatterplot or boxplot displaying the relationship between a response variable and an explanatory variable. If both variables are quantitative, it is possible to superimpose a regression curve (linear, polynomial, log-linear, log-log)
 - `addTerms`: addition of polynomial and/or logarithmic terms to a formula
 - `stepCV`: stepwise pruning of explanatory variables through cross-validation
 - `bestTune`: best tuning of hyperparameters
