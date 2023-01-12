@@ -15,7 +15,8 @@ New models:
 
 New custom summaries:
 - `customSummaryClass`: summary for classification tasks, including AUC and optimized specificity/sensitivity in case of class unbalance
-- `customSummaryReg`: summary for regression taks, including RMSE, MAE, MAPE and R-squared
+- `customSummaryReg`: summary for regression taks, including RMSE, MAE, MAPE, and R-squared
+- `customSummaryReg_median`: summary for regression taks, including the median version of RMSE, MAE, and MAPE (robust to outliers)
 
 New general-purpose functions:
 - `corPlot`: correlogram
@@ -28,4 +29,5 @@ New general-purpose functions:
 - `importancePlot`: graphic of variable importance for objects of class `rpart` and `randomForest`
 - `rocPlot`: roc curve (only for binary classification)
 - `predPlot`: scatterplot of observed versus predicted values (only for regression tasks)
+- `iErr`: individual prediction errors (only for regression tasks)
 - `cookDist`: Cook's distance between observed and predicted values (not implemented for multiple classification)
