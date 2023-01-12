@@ -381,7 +381,9 @@ scatPlot <- function(y.name, x.name, data, log.y=FALSE, log.x=FALSE, deg=1, orig
   }
 
 # correlogram
-corPlot <- function(data, upper.panel=panel.conf, ...) {
+corPlot <- function(data, upper.panel=panel.cor, ...) {
   dataOK <- model.matrix(~.,data=data)[,-1,drop=F]
-  corrgram(dataOK, upper.panel=upper.panel, ...)
+  suppressWarnings(
+    corrgram(dataOK, upper.panel=upper.panel, ...)
+    )
   }
