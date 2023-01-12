@@ -331,53 +331,81 @@ cookDist <- function(caret_fit, plot=TRUE, print=TRUE, cex=0.6, ...) {
   }
 
 # scatterplot with regression curve
-scatPlot <- function(y.name, x.name, data, log.y=FALSE, log.x=FALSE, deg=1, orig.scale=TRUE, xlab=NULL, ylab=NULL, add.grid=TRUE, points.col="grey40", points.cex=0.6, line.lty=1, line.lwd=1, line.col=1, add=FALSE, ...) {
+scatPlot <- function(y.name, x.name, data, log.y=FALSE, log.x=FALSE, deg=0, orig.scale=TRUE, nval.min=3, xlab=NULL, ylab=NULL, add.grid=TRUE, points.col="grey40", points.cex=0.6, line.lty=1, line.lwd=1, line.col=1, add=FALSE, ...) {
   y <- data[,y.name]
   x <- data[,x.name]
-  if(is.numeric(x)&length(unique(na.omit(x)))>2) {
-    if(sum(y<=0)>0) log.y <- F
-    if(sum(x<=0)>0) log.x <- F
-    if(log.y) {
-      fy <- "log(y)"
-      y0 <- log(y)
-      if(orig.scale==F & is.null(ylab)) ylab <- paste0("log(",y.name,")")
+  if(is.null(ylab)) ylab <- y.name
+  if(is.null(xlab)) xlab <- x.name
+  if(is.numeric(x) && (identical(x,round(x)) & nlevels(factor(x))<nval.min)) x <- factor(x)
+  if(is.numeric(y)) {
+    if(is.numeric(x) && nlevels(factor(x))>2) {
+      if(sum(y<=0)>0) log.y <- F
+      if(sum(x<=0)>0) log.x <- F
+      if(log.y) {
+        fy <- "log(y)"
+        y0 <- log(y)
+        if(orig.scale==F & is.null(ylab)) ylab <- paste0("log(",y.name,")")
+        } else {
+        fy <- "y"
+        y0 <- y
+        }
+      if(log.x) {
+        fx <- "log(x)"
+        x0 <- log(x)
+        if(orig.scale==F & is.null(xlab)) xlab <- paste0("log(",x.name,")")
+        } else {
+        fx <- "x"
+        x0 <- x
+        }
+      if(deg>0) {
+        xseq <- seq(min(x,na.rm=T),max(x,na.rm=T),length=100)
+        form <- paste0(fy,"~poly(",fx,",deg)")
+        mod <- lm(formula(form))
+        xpred <- predict(mod, data.frame(x=xseq))
+        }
+      if(orig.scale) {
+        if(add==F) plot(x, y, ylab=ylab, xlab=xlab, type="n", ...)
+        if(add.grid) grid()
+        if(add==F) points(x, y, col=points.col, cex=points.cex)
+        if(deg>0) {
+          if(log.y) xpred <- exp(xpred)
+          lines(xseq, xpred, col=line.col, lwd=line.lwd, lty=line.lty)
+          }
+        } else {
+        if(add==F) plot(x0, y0, ylab=ylab, xlab=xlab, type="n", ...)
+        if(add.grid) grid()
+        if(add==F) points(x0, y0, col=points.col, cex=points.cex)
+        if(log.x) xseq0 <- log(xseq) else xseq0 <- xseq
+        if(deg>0) lines(xseq0, xpred, col=line.col, lwd=line.lwd, lty=line.lty)
+        }
       } else {
-      fy <- "y"
-      y0 <- y
+      if(add.grid) {
+        plot(factor(x), y, xlab=xlab, ylab=ylab, frame=F, col=NA, border=NA, ...)
+        grid()
+        plot(factor(x), y, xlab=NULL, ylab=NULL, col=NA, add=T, ...)
+        } else {
+        plot(factor(x), y, xlab=xlab, ylab=ylab, ...)  
+        }
       }
-    if(log.x) {
-      fx <- "log(x)"
-      x0 <- log(x)
-      if(orig.scale==F & is.null(xlab)) xlab <- paste0("log(",x.name,")")
-      } else {
-      fx <- "x"
-      x0 <- x
-      }
-    if(is.null(ylab)) ylab <- y.name
-    if(is.null(xlab)) xlab <- x.name
-    xseq <- seq(min(x,na.rm=T),max(x,na.rm=T),length=100)
-    form <- paste0(fy,"~poly(",fx,",deg)")
-    mod <- lm(formula(form))
-    xpred <- predict(mod, data.frame(x=xseq))
-    if(orig.scale) {
-      if(log.y) xpred <- exp(xpred)
-      if(add==F) plot(x, y, ylab=ylab, xlab=xlab, type="n", ...)
-      if(add.grid) grid()
-      if(add==F) points(x, y, col=points.col, cex=points.cex)
-      lines(xseq, xpred, col=line.col, lwd=line.lwd, lty=line.lty)
-      } else {
-      if(add==F) plot(x0, y0, ylab=ylab, xlab=xlab, type="n", ...)
-      if(add.grid) grid()
-      if(add==F) points(x0, y0, col=points.col, cex=points.cex)
-      if(log.x) xseq0 <- log(xseq) else xseq0 <- xseq
-      lines(xseq0, xpred, col=line.col, lwd=line.lwd, lty=line.lty)
-      }
-    box()
     } else {
-    if(is.null(ylab)) ylab <- y.name
-    if(is.null(xlab)) xlab <- x.name
-    plot(factor(x), y, xlab=xlab, ylab=ylab, ...)  
+    if(is.numeric(x)) {
+      if(add.grid) {
+        plot(factor(y), x, xlab=ylab, ylab=xlab, frame=F, col=NA, border=NA, ...)
+        grid()
+        plot(factor(y), x, xlab=NULL, ylab=NULL, col=NA, add=T, ...)
+        } else {
+        plot(factor(y), x, xlab=ylab, ylab=xlab, ...)  
+        }
+      } else {
+      #tab <- t(prop.table(table(y,x),1))
+      #bp <- barplot(tab, beside=T, ylim=c(0,1), xlab=ylab, ylab=paste0("Pr(",x.name," = ?)"))
+      #text(bp, tab+0.05, labels=levels(factor(x)), cex=0.8, xpd=T)
+      tab <- t(prop.table(table(x,y),1))
+      bp <- barplot(tab, beside=T, ylim=c(0,1), xlab=xlab, ylab=paste0("Pr(",y.name," = ?)"))
+      text(bp, tab+0.05, labels=levels(factor(y)), cex=0.8, xpd=T)
+      }
     }
+  box()
   }
 
 # correlogram
