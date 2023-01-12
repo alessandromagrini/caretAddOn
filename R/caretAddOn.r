@@ -122,7 +122,7 @@ customSummaryClass <- function(data, lev = NULL, model = NULL) {
     }
   }
 
-# summary for regression tasks
+# summary for regression tasks - mean metrics
 customSummaryReg <- function(data, lev = NULL, model = NULL) {
   yobs <- data$obs
   ypred <- data$pred
@@ -131,6 +131,24 @@ customSummaryReg <- function(data, lev = NULL, model = NULL) {
   if(var(ypred)>0) rsq <- (cor(yobs,ypred))^2 else rsq <- NA
   if(sum(yobs<=0)==0) {
     mape <- 100*mean(abs((yobs-ypred)/yobs))
+    out <- c(mse,sqrt(mse),mae,mape,rsq)
+    names(out) <- c("MSE","RMSE","MAE","MAPE","R-squared")    
+    } else {
+    out <- c(mse,sqrt(mse),mae,rsq)
+    names(out) <- c("MSE","RMSE","MAE","R-squared")
+    }
+  out
+  }
+
+# summary for regression tasks - median metrics
+customSummaryReg_median <- function(data, lev = NULL, model = NULL) {
+  yobs <- data$obs
+  ypred <- data$pred
+  mse <- median((yobs-ypred)^2)
+  mae <- median(abs(yobs-ypred))
+  if(var(ypred)>0) rsq <- (cor(yobs,ypred))^2 else rsq <- NA
+  if(sum(yobs<=0)==0) {
+    mape <- 100*median(abs((yobs-ypred)/yobs))
     out <- c(mse,sqrt(mse),mae,mape,rsq)
     names(out) <- c("MSE","RMSE","MAE","MAPE","R-squared")    
     } else {
@@ -268,6 +286,27 @@ predPlot <- function(caret_fit, cex=0.8, col=1, xlab="observed", ylab="predicted
   box()
   }
 
+# individual prediction errors
+iErr <- function(caret_fit, metric=NULL) {
+  if(identical(caret_fit$modelType,"Regression")==F) stop("Implemented for regression tasks only",call.=F)
+  tab <- caret_fit$pred
+  pred <- do.call(c,lapply(split(tab[,"pred"],tab[,"rowIndex"]),mean))
+  obs <- do.call(c,lapply(split(tab[,"obs"],tab[,"rowIndex"]),function(z){z[1]}))  
+  RMSE <- sqrt((pred-obs)^2)
+  MAE <- abs(pred-obs)
+  if(sum(obs<=0)==0) MAPE <- abs((pred-obs)/obs) else mape <- NA 
+  mat <- cbind(RMSE,MAE,MAPE) 
+  rownames(mat) <- names(obs)
+  if(!is.null(metric)) {
+    metric <- toupper(metric)
+    aux <- setdiff(metric,colnames(mat))
+    if(length(aux)>0) stop("Metric '",aux[1],"' unavailable: use one among 'RMSE', 'MAE', and 'MAPE'",call.=F)
+    mat[,metric]
+    } else {
+    mat
+    }
+  }
+
 # cook's distance
 cookDist <- function(caret_fit, plot=TRUE, print=TRUE, cex=0.6, ...) {
   tab <- caret_fit$pred
@@ -287,7 +326,8 @@ cookDist <- function(caret_fit, plot=TRUE, print=TRUE, cex=0.6, ...) {
     plot(distance, type="n", ...)
     text(distance, labels=names(distance), cex=cex)
     }
-  if(print) sort(boxplot(distance)$out, decreasing=T)
+  if(print) sort(distance, decreasing=T)
+  #sort(boxplot(distance, range=range, plot=F)$out, decreasing=T)
   }
 
 # scatterplot with regression curve
