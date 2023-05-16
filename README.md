@@ -1,7 +1,7 @@
 # caretAddOn
 __Additional functionalities for the R package 'caret'__
 
-This package contains additional functionalities for the `caret` package, including new models, new summaries, new graphical tools, general purpose functions, and datasets.
+This package contains additional functionalities for the `caret` package, including new models, new summaries, graphical tools, general purpose functions, and datasets.
 Reference for the `caret` package:
 
 M. Kuhn (2022). caret: Classification and Regression Training. R package version 6.0-92. CRAN page: <a href="https://CRAN.R-project.org/package=caret">https://CRAN.R-project.org/package=caret</a>.
