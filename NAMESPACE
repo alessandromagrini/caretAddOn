@@ -1,10 +1,16 @@
-export(loglm_mean,loglm_median,svm_linear,svm_radial,customSummaryClass,customSummaryReg,addTerms,stepCV,bestTune,enetCoef,trainPlot,importancePlot,rocPlot,predPlot,cookDist,scatPlot,corPlot)
+export(loglm, svm_linear, svm_radial, loglm_mean, loglm_median,
+       customSummaryClass, customSummaryReg,
+       bestTune, addTerms, stepCV, vifCalc, enetCoef,
+       multiBoxPlot, multiScatPlot, corPlot, trainPlot, importancePlot, rocPlot, predPlot)
 
 importFrom("graphics", "abline", "axis", "box", "grid", "points", "lines", "text", "boxplot", "barplot")
-importFrom("stats", "model.matrix", "cor", "na.omit", "predict", "terms", "update", "var", "median", "cooks.distance", "formula", "lm", "glm", "quantile")
-importFrom("corrgram", "corrgram", "panel.cor")
+importFrom("stats", "model.matrix", "cor", "na.omit", "predict", "terms", "update", "var", "median", "cooks.distance", "formula", "lm", "glm", "quantile", "fitted")
 importFrom("caret", "train")
+importFrom("ggplot2", "ggplot")
+importFrom("cowplot", "plot_grid")
 importFrom("randomForest", "importance")
 importFrom("pROC","roc")
 importFrom("e1071","svm")
+importFrom("grDevices", "boxplot.stats")
+importFrom("corrgram", "corrgram", "panel.cor")
 importFrom("utils", "flush.console")

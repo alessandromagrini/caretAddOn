@@ -1,31 +1,30 @@
-# linear regression in log scale - mean
-loglm_mean <- caret::getModelInfo("lm", regex = FALSE)[[1]]
-loglm_mean$fit <- function(x, y, wts, param, lev, last, classProbs, ...) {
-  dat <- if(is.data.frame(x)) x else as.data.frame(x, stringsAsFactors = TRUE)
+###  NEW MODELS  ###
+
+# log-linear regression model
+loglm <- caret::getModelInfo("lm", regex = FALSE)[[1]]
+loglm$fit <- function(x, y, wts, param, lev, last, classProbs, bias.adj=TRUE, ...) {
+  dat <- if(is.data.frame(x)) x else as.data.frame(x, stringsAsFactors=TRUE)
   dat$.outcome <- log(y)
   if(!is.null(wts)) {
-    if(param$intercept)
+    if(param$intercept) {
       out <- lm(.outcome ~ ., data = dat, weights = wts, ...)
-    else
+      } else {
       out <- lm(.outcome ~ 0 + ., data = dat, weights = wts, ...)
+      }
     } else {
-    if(param$intercept)
+    if(param$intercept) {
       out <- lm(.outcome ~ ., data = dat, ...)
-    else
+      } else {
       out <- lm(.outcome ~ 0 + ., data = dat, ...)
+      }
     }
+  out$bias.adj <- bias.adj
   out
   }
-loglm_mean$predict <- function(modelFit, newdata, submodels = NULL) {
+loglm$predict <- function(modelFit, newdata, submodels = NULL) {
   if(!is.data.frame(newdata)) newdata <- as.data.frame(newdata, stringsAsFactors = TRUE)
-  exp(predict(modelFit, newdata)+0.5*summary(modelFit)$sigma^2)
-  }
-
-# linear regression in log scale - median
-loglm_median <- loglm_mean
-loglm_median$predict <- function(modelFit, newdata, submodels = NULL) {
-  if(!is.data.frame(newdata)) newdata <- as.data.frame(newdata, stringsAsFactors = TRUE)
-  exp(predict(modelFit, newdata))
+  if(modelFit$bias.adj) adj <- 0.5*summary(modelFit)$sigma^2 else adj <- 0
+  exp(predict(modelFit, newdata)+adj)
   }
 
 # svm linear model
@@ -92,6 +91,9 @@ svm_radial <- list(
   sort = function(x) x[order(x$cost, x$gamma),]
   )
 
+
+###  NEW SUMMARIES  ###
+
 # summary for classification tasks
 customSummaryClass <- function(data, lev = NULL, model = NULL) {
   if(length(lev)==2) {
@@ -109,7 +111,7 @@ customSummaryClass <- function(data, lev = NULL, model = NULL) {
       }
     if(youd[3]==Inf) youd[3] <- 1
     if(youd[3]==-Inf) youd[3] <- 0
-    out <- c(rocObject$auc, unlist(bayes),unlist(youd))
+    out <- c(rocObject$auc, unlist(bayes), unlist(youd))
     names(out) <- c("Accuracy","Spec","Sens","Spec_youden", "Sens_youden","cut_youden")
     out
     } else {
@@ -118,7 +120,7 @@ customSummaryClass <- function(data, lev = NULL, model = NULL) {
     acc <- c()
     for(i in 1:nrow(cmat)) acc[i] <- cmat[i,i]/sum(cmat[i,])
     names(acc) <- rownames(cmat)
-    c(Accuracy=acc0,acc)
+    c(Accuracy=acc0, acc)
     }
   }
 
@@ -140,28 +142,47 @@ customSummaryReg <- function(data, lev = NULL, model = NULL) {
   out
   }
 
-# summary for regression tasks - median metrics
-customSummaryReg_median <- function(data, lev = NULL, model = NULL) {
-  yobs <- data$obs
-  ypred <- data$pred
-  mse <- median((yobs-ypred)^2)
-  mae <- median(abs(yobs-ypred))
-  if(var(ypred)>0) rsq <- (cor(yobs,ypred))^2 else rsq <- NA
-  if(sum(yobs<=0)==0) {
-    mape <- 100*median(abs((yobs-ypred)/yobs))
-    out <- c(mse,sqrt(mse),mae,mape,rsq)
-    names(out) <- c("MSE","RMSE","MAE","MAPE","R-squared")    
-    } else {
-    out <- c(mse,sqrt(mse),mae,rsq)
-    names(out) <- c("MSE","RMSE","MAE","R-squared")
-    }
-  out
-  }
+
+###  NEW FUNCTIONS  ###
 
 # get metrics at best tuning
 bestTune <- function(caret_fit) {
   best <- which(rownames(caret_fit$results)==rownames(caret_fit$bestTune))
   caret_fit$results[best,]
+  }
+
+# get CV predictions - fitted method for class 'train'
+fitted.train <- function(object) {
+  tab <- object$pred
+  if(identical(object$modelType,"Regression")) {
+    pred <- do.call(c,lapply(split(tab[,"pred"],tab[,"rowIndex"]),mean))
+    obs <- do.call(c,lapply(split(tab[,"obs"],tab[,"rowIndex"]),function(z){z[1]}))  
+    } else {
+    lev <- object$levels
+    predList <- list()
+    for(i in 1:length(lev)) {
+      predList[[i]] <- do.call(c,lapply(split(tab[,object$levels[2]],tab[,"rowIndex"]),mean))
+      }
+    pred <- do.call(cbind,predList)
+    colnames(pred) <- lev
+    obs <- factor(do.call(c,lapply(split(tab[,"obs"],tab[,"rowIndex"]),function(z){z[1]})), levels=lev)
+    }
+  tab <- data.frame(id=rownames(object$trainingData),observed=obs, predicted=pred)
+  tab
+  }
+
+# variance inflation factors
+vifCalc <- function(data) {
+  dataOK <- data.frame(model.matrix(~., data=data)[,-1,drop=F])
+  nomi <- colnames(dataOK)
+  vif <- c()
+  for(i in 1:length(nomi)) {
+    form <- paste0(nomi[i],"~.")
+    mod <- lm(formula(form), data=dataOK)
+    vif[i] <- 1/(1-summary(mod)$r.squared)
+    }
+  names(vif) <- nomi
+  vif
   }
 
 # get coefficients at best tuning for an elastic net
@@ -171,23 +192,15 @@ enetCoef <- function(caret_fit) {
     s=caret_fit$bestTune$lambda))[,1]
   }
 
-# metric versus parameter plot
-trainPlot <- function(caret_fit, par=NULL, metric=NULL, r.max=10, ylab=NULL, xlab=NULL, vcol="red", ...) {
-  if(is.null(metric)) metric <- caret_fit$metric
-  if(is.null(par)) par <- colnames(caret_fit$bestTune)[1]
-  if(is.null(ylab)) ylab <- metric
-  if(is.null(xlab)) xlab <- par
-  plot(caret_fit$results[,par], caret_fit$results[,metric], ylab=ylab, xlab=xlab, type="l", ...)
-  abline(v=caret_fit$bestTune, col=vcol)
-  }
-
 # extract variables in formula (auxiliary)
 extrVar <- function(formula, data) {
-  labels(terms(formula[-2], data=data))
+  labels(terms(formula, data=data))
   }
 
 # add polynomial and/or logarithmic terms to a formula
-addTerms <- function(formula, max.deg=2, add.log=FALSE, data) {
+addTerms <- function(formula, max.deg=1, add.log=FALSE, data) {
+  if(!is.numeric(max.deg)) max.deg <- 1 else max.deg <- max(1,round(max.deg))
+  if(!is.logical(add.log)) add.log <- F else add.log <- add.log[1]
   nomi <- extrVar(formula, data=data)
   if(length(nomi)>0) {
     xstr <- c()
@@ -211,6 +224,8 @@ addTerms <- function(formula, max.deg=2, add.log=FALSE, data) {
 
 # backward stepwise selection via cross-validation
 stepCV <- function(formula, data, method, trControl, max.deg=2, add.log=FALSE, maximize=FALSE, quiet=FALSE, ...) {
+  if(!is.logical(maximize)) maximize <- F else maximize <- maximize[1]
+  if(!is.logical(quiet)) quiet <- F else quiet <- quiet[1]
   mseOK <- Inf
   formOK <- addTerms(formula, max.deg=max.deg, add.log=add.log, data=data)
   fine <- 0
@@ -220,7 +235,7 @@ stepCV <- function(formula, data, method, trControl, max.deg=2, add.log=FALSE, m
     auxform <- auxmod <- list()
     nomi <- extrVar(formOK,data=data)
     for(i in 1:length(nomi)) {
-      if(quiet==F) cat('\r',"Step ",ind,". Checked ",i,"/",length(nomi)," variables",sep="")
+      if(quiet==F) cat('\r',"Step ",ind,". Evaluated ",i,"/",length(nomi)," terms",sep="")
       auxform[[i]] <- update(formOK, formula(paste0(".~.-",nomi[i])))
       itrain <- suppressWarnings(
         caret::train(auxform[[i]], data=data, method=method, trControl=trControl, maximize=maximize, ...)
@@ -240,8 +255,21 @@ stepCV <- function(formula, data, method, trControl, max.deg=2, add.log=FALSE, m
     ind <- ind+1
     if(quiet==F) cat("\n")
     }
-  if(quiet==F) cat("End with ",length(extrVar(formOK,data=data))," variables",sep="","\n")
+  if(quiet==F) cat("End with ",length(extrVar(formOK,data=data))," terms",sep="","\n")
   modOK
+  }
+
+
+###  NEW GRAPHICS  ###
+
+# metric versus parameter plot
+trainPlot <- function(caret_fit, par=NULL, metric=NULL, ylab=NULL, xlab=NULL, vcol="red", ...) {
+  if(is.null(metric)) metric <- caret_fit$metric
+  if(is.null(par)) par <- colnames(caret_fit$bestTune)[1]
+  if(is.null(ylab)) ylab <- metric
+  if(is.null(xlab)) xlab <- par
+  plot(caret_fit$results[,par], caret_fit$results[,metric], ylab=ylab, xlab=xlab, type="l", ...)
+  abline(v=caret_fit$bestTune, col=vcol)
   }
 
 # plot of variable importance
@@ -263,155 +291,159 @@ importancePlot <- function(caret_fit, ylab="", add.grid=TRUE, cex.points=0.8, ce
 # roc curve
 rocPlot <- function(caret_fit, lwd=2, quiet=TRUE, ...) {
   if(identical(caret_fit$modelType,"Classification")==F & length(caret_fit$levels)==2) stop("Implemented for binary classification tasks only",call.=F)
-  tab <- caret_fit$pred
-  pred <- do.call(c,lapply(split(tab[,caret_fit$levels[2]],tab[,"rowIndex"]),mean))
-  obs <- do.call(c,lapply(split(tab[,"obs"],tab[,"rowIndex"]),function(z){z[1]}))
+  #tab <- caret_fit$pred
+  #pred <- do.call(c,lapply(split(tab[,caret_fit$levels[2]],tab[,"rowIndex"]),mean))
+  #obs <- do.call(c,lapply(split(tab[,"obs"],tab[,"rowIndex"]),function(z){z[1]}))
+  fit <- fitted(caret_fit)
   suppressWarnings(
-    #rocObj <- pROC::roc(response=tab[,"obs"], predictor=tab[,caret_fit$levels[2]], lwd=lwd, quiet=quiet, ...)
-    rocObj <- pROC::roc(response=obs, predictor=pred, lwd=lwd, quiet=quiet, ...)
+    rocObj <- pROC::roc(response=fit$observed, predictor=fit$predicted, lwd=lwd, quiet=quiet, ...)
     )
   plot(rocObj, ...)
   }
 
-# observed versus predicted values
-predPlot <- function(caret_fit, cex=0.8, col=1, xlab="observed", ylab="predicted", add.grid=TRUE, ...) {
-  if(identical(caret_fit$modelType,"Regression")==F) stop("Implemented for regression tasks only",call.=F)
-  tab <- caret_fit$pred
-  pred <- do.call(c,lapply(split(tab[,"pred"],tab[,"rowIndex"]),mean))
-  obs <- do.call(c,lapply(split(tab[,"obs"],tab[,"rowIndex"]),function(z){z[1]}))  
-  plot(obs, pred, xlab=xlab, ylab=ylab, type="n", ...)
-  if(add.grid) grid()
-  points(obs, pred, cex=cex, col=col)
-  abline(0,1)
-  box()
+# multiple univariate boxplots
+multiBoxPlot <- function(x.names=NULL, data, coef=1.5, outliers=TRUE, y.axis.size=8, title.size=10, alpha=0.1, outlier.alpha=1, outlier.size=0.6, outlier.color="black", ...) {
+  if(is.null(x.names)) x.names <- colnames(data)
+  x2del <- c()
+  isQual <- function(x){!is.numeric(x)||nlevels(factor(x))<3}
+  for(i in 1:length(x.names)) {
+    if((x.names[i]%in%colnames(data))==F||isQual(data[,x.names[i]])) x2del <- c(x2del,x.names[i])
+    }
+  x.names <- setdiff(x.names,x2del)
+  if(length(x.names)==0) stop("No valid variable name in argument 'x.names'")
+  pp <- list()
+  for(i in 1:length(x.names)) {
+    idat <- data[,x.names[i]]
+    if(outliers) {
+      irng <- range(idat,na.rm=T)
+      icol <- outlier.color
+      } else {
+      irng <- boxplot.stats(idat, coef=coef)$stats[c(1,5)]
+      icol <- NA
+      }
+    pp[[i]] <- eval(substitute(
+      ggplot() +
+        geom_boxplot(aes(y=idat), alpha=alpha, outlier.alpha=outlier.alpha, outlier.size=outlier.size, coef=coef, outlier.color=icol, ...) +
+        scale_x_discrete() +
+        coord_cartesian(ylim=irng) +
+        labs(title=x.names[i], y="", x="") +
+        theme(axis.text.y=element_text(size=y.axis.size),
+              plot.title=element_text(size=title.size))     
+      ), list(i=i))
+    }
+  cowplot::plot_grid(plotlist=pp)
   }
 
-# individual prediction errors
-iErr <- function(caret_fit, metric=NULL) {
-  if(identical(caret_fit$modelType,"Regression")==F) stop("Implemented for regression tasks only",call.=F)
-  tab <- caret_fit$pred
-  pred <- do.call(c,lapply(split(tab[,"pred"],tab[,"rowIndex"]),mean))
-  obs <- do.call(c,lapply(split(tab[,"obs"],tab[,"rowIndex"]),function(z){z[1]}))  
-  RMSE <- sqrt((pred-obs)^2)
-  MAE <- abs(pred-obs)
-  if(sum(obs<=0)==0) MAPE <- abs((pred-obs)/obs) else mape <- NA 
-  mat <- cbind(RMSE,MAE,MAPE) 
-  rownames(mat) <- names(obs)
-  if(!is.null(metric)) {
-    metric <- toupper(metric)
-    aux <- setdiff(metric,colnames(mat))
-    if(length(aux)>0) stop("Metric '",aux[1],"' unavailable: use one among 'RMSE', 'MAE', and 'MAPE'",call.=F)
-    mat[,metric]
+# multiple bivariate scatterplots
+multiScatPlot <- function(y.name, x.names=NULL, data, coef=1.5, outliers=FALSE, axis.size=6, label.size=10, point.size=0.6, ...) {
+  if(is.null(x.names)) x.names <- colnames(data)
+  yaux <- intersect(y.name,colnames(data))
+  x.names <- setdiff(intersect(x.names,colnames(data)),yaux)
+  if(length(yaux)==0) stop("No valid variable name in argument 'y.name'") 
+  if(length(x.names)==0) stop("No valid variable name in argument 'x.names'") 
+  y.name <- yaux[1]
+  pp <- list()
+  if(is.numeric(data[,y.name])) {
+    for(i in 1:length(x.names)) {
+      pp[[i]] <- eval(substitute(
+        ggplot() +
+          geom_point(aes(y=data[,y.name],x=data[,x.names[i]]), size=point.size, ...) +
+          #geom_smooth(se=T,na.rm=T) +
+          labs(x=x.names[i], y=y.name) +
+          theme(axis.text=element_text(size=axis.size),
+                axis.title=element_text(size=label.size))
+        ), list(i=i))
+      }
     } else {
-    mat
-    }
-  }
-
-# cook's distance
-cookDist <- function(caret_fit, plot=TRUE, print=TRUE, cex=0.6, ...) {
-  tab <- caret_fit$pred
-  if(identical(caret_fit$modelType,"Regression")) {
-    pred <- do.call(c,lapply(split(tab[,"pred"],tab[,"rowIndex"]),mean))
-    obs <- do.call(c,lapply(split(tab[,"obs"],tab[,"rowIndex"]),function(z){z[1]}))  
-    distance <- cooks.distance(lm(obs~pred))
-    } else if(length(caret_fit$levels)==2) {
-    tab <- caret_fit$pred
-    pred <- do.call(c,lapply(split(tab[,caret_fit$levels[2]],tab[,"rowIndex"]),mean))
-    obs <- do.call(c,lapply(split(tab[,"obs"],tab[,"rowIndex"]),function(z){z[1]}))
-    distance <- cooks.distance(glm(obs~pred, family="binomial"))
-    } else {
-    stop("Not implemented for multiple classification",call.=F)  
-    }
-  if(plot) {
-    plot(distance, type="n", ...)
-    text(distance, labels=names(distance), cex=cex)
-    }
-  if(print) sort(distance, decreasing=T)
-  #sort(boxplot(distance, range=range, plot=F)$out, decreasing=T)
-  }
-
-# scatterplot with regression curve
-scatPlot <- function(y.name, x.name, data, log.y=FALSE, log.x=FALSE, deg=0, orig.scale=TRUE, nval.min=3, xlab=NULL, ylab=NULL, add.grid=TRUE, points.col="grey40", points.cex=0.6, line.lty=1, line.lwd=1, line.col=1, add=FALSE, ...) {
-  y <- data[,y.name]
-  x <- data[,x.name]
-  if(is.null(ylab)) ylab <- y.name
-  if(is.null(xlab)) xlab <- x.name
-  if(is.numeric(x) && (identical(x,round(x)) & nlevels(factor(x))<nval.min)) x <- factor(x)
-  if(is.numeric(y)) {
-    if(is.numeric(x) && nlevels(factor(x))>2) {
-      if(sum(y<=0)>0) log.y <- F
-      if(sum(x<=0)>0) log.x <- F
-      if(log.y) {
-        fy <- "log(y)"
-        y0 <- log(y)
-        if(orig.scale==F & is.null(ylab)) ylab <- paste0("log(",y.name,")")
-        } else {
-        fy <- "y"
-        y0 <- y
-        }
-      if(log.x) {
-        fx <- "log(x)"
-        x0 <- log(x)
-        if(orig.scale==F & is.null(xlab)) xlab <- paste0("log(",x.name,")")
-        } else {
-        fx <- "x"
-        x0 <- x
-        }
-      if(deg>0) {
-        xseq <- seq(min(x,na.rm=T),max(x,na.rm=T),length=100)
-        form <- paste0(fy,"~poly(",fx,",deg)")
-        mod <- lm(formula(form))
-        xpred <- predict(mod, data.frame(x=xseq))
-        }
-      if(orig.scale) {
-        if(add==F) plot(x, y, ylab=ylab, xlab=xlab, type="n", ...)
-        if(add.grid) grid()
-        if(add==F) points(x, y, col=points.col, cex=points.cex)
-        if(deg>0) {
-          if(log.y) xpred <- exp(xpred)
-          lines(xseq, xpred, col=line.col, lwd=line.lwd, lty=line.lty)
+    for(i in 1:length(x.names)) {
+      if(is.numeric(data[,x.names[i]])) {
+        if(outliers[1]) {
+          irng <- range(data[,x.names[i]],na.rm=T)
+          icol <- "black"
+          } else {
+          irng <- range(boxplot(data[,x.names[i]]~data[,y.name], coef=coef, plot=F)$stats[c(1,5),])
+          icol <- NA
           }
+        pp[[i]] <- eval(substitute(
+          ggplot() +
+            geom_boxplot(aes(x=data[,y.name],y=data[,x.names[i]]), coef=coef, outlier.size=point.size, outlier.color=icol, ...) +
+            coord_cartesian(ylim=irng) +
+            labs(y=x.names[i], x=y.name) +
+            theme(axis.text=element_text(size=axis.size),
+                  axis.title=element_text(size=label.size))
+          ), list(i=i))
         } else {
-        if(add==F) plot(x0, y0, ylab=ylab, xlab=xlab, type="n", ...)
-        if(add.grid) grid()
-        if(add==F) points(x0, y0, col=points.col, cex=points.cex)
-        if(log.x) xseq0 <- log(xseq) else xseq0 <- xseq
-        if(deg>0) lines(xseq0, xpred, col=line.col, lwd=line.lwd, lty=line.lty)
+        idat <- as.data.frame(prop.table(table(data[,y.name],data[,x.names[i]]),1))
+        pp[[i]] <- eval(substitute(
+          ggplot(idat, aes(x=Var1,y=Freq,fill=Var2)) +
+          geom_bar(position="stack", stat="identity", ...) +
+          scale_x_discrete() +
+          scale_fill_grey(start=0.4, end=0.8) +
+          labs(x=y.name, y="", fill=x.names[i]) +
+          theme(axis.text=element_text(size=axis.size),
+                axis.title=element_text(size=label.size),
+                legend.title=element_text(size=label.size),
+                legend.text=element_text(size=0.9*label.size),
+                #legend.position="top",
+                legend.key.size=unit(0.5,"line"))
+          ), list(i=i))
         }
-      } else {
-      if(add.grid) {
-        plot(factor(x), y, xlab=xlab, ylab=ylab, frame=F, col=NA, border=NA, ...)
-        grid()
-        plot(factor(x), y, xlab=NULL, ylab=NULL, col=NA, add=T, ...)
-        } else {
-        plot(factor(x), y, xlab=xlab, ylab=ylab, ...)  
-        }
-      }
-    } else {
-    if(is.numeric(x)) {
-      if(add.grid) {
-        plot(factor(y), x, xlab=ylab, ylab=xlab, frame=F, col=NA, border=NA, ...)
-        grid()
-        plot(factor(y), x, xlab=NULL, ylab=NULL, col=NA, add=T, ...)
-        } else {
-        plot(factor(y), x, xlab=ylab, ylab=xlab, ...)  
-        }
-      } else {
-      #tab <- t(prop.table(table(y,x),1))
-      #bp <- barplot(tab, beside=T, ylim=c(0,1), xlab=ylab, ylab=paste0("Pr(",x.name," = ?)"))
-      #text(bp, tab+0.05, labels=levels(factor(x)), cex=0.8, xpd=T)
-      tab <- t(prop.table(table(x,y),1))
-      bp <- barplot(tab, beside=T, ylim=c(0,1), xlab=xlab, ylab=paste0("Pr(",y.name," = ?)"))
-      text(bp, tab+0.05, labels=levels(factor(y)), cex=0.8, xpd=T)
       }
     }
+  cowplot::plot_grid(plotlist=pp)
+  }
+
+# observed versus predicted values
+predPlot <- function(caret_fit, xlab="observed", ylab="predicted",cex=0.8, col="black",  add.grid=TRUE, show.id=FALSE, ...) {
+  fit <- fitted(caret_fit)
+  plot(fit$observed, fit$predicted, xlab=xlab, ylab=ylab, type="n", ...)
+  if(add.grid) grid()
+  if(show.id) {
+    text(fit$observed, fit$predicted, labels=rownames(fit), cex=cex, col=col)
+    } else {
+    points(fit$observed, fit$predicted, cex=cex, col=col)
+    }
+  abline(0,1)
   box()
   }
 
 # correlogram
 corPlot <- function(data, upper.panel=panel.cor, ...) {
-  dataOK <- model.matrix(~.,data=data)[,-1,drop=F]
+  dataOK <- model.matrix(~., data=data)[,-1,drop=F]
   suppressWarnings(
     corrgram(dataOK, upper.panel=upper.panel, ...)
     )
+  }
+
+
+###  OBSOLETE FUNCTIONS  ###
+
+# log-linear regression - mean
+loglm_mean <- caret::getModelInfo("lm", regex = FALSE)[[1]]
+loglm_mean$fit <- function(x, y, wts, param, lev, last, classProbs, ...) {
+  dat <- if(is.data.frame(x)) x else as.data.frame(x, stringsAsFactors = TRUE)
+  dat$.outcome <- log(y)
+  if(!is.null(wts)) {
+    if(param$intercept)
+      out <- lm(.outcome ~ ., data = dat, weights = wts, ...)
+    else
+      out <- lm(.outcome ~ 0 + ., data = dat, weights = wts, ...)
+    } else {
+    if(param$intercept)
+      out <- lm(.outcome ~ ., data = dat, ...)
+    else
+      out <- lm(.outcome ~ 0 + ., data = dat, ...)
+    }
+  out
+  }
+loglm_mean$predict <- function(modelFit, newdata, submodels = NULL) {
+  if(!is.data.frame(newdata)) newdata <- as.data.frame(newdata, stringsAsFactors = TRUE)
+  exp(predict(modelFit, newdata)+0.5*summary(modelFit)$sigma^2)
+  }
+
+# log-linear regression - median
+loglm_median <- loglm_mean
+loglm_median$predict <- function(modelFit, newdata, submodels = NULL) {
+  if(!is.data.frame(newdata)) newdata <- as.data.frame(newdata, stringsAsFactors = TRUE)
+  exp(predict(modelFit, newdata))
   }
