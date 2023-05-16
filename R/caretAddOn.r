@@ -161,7 +161,7 @@ fitted.train <- function(object, ...) {
     lev <- object$levels
     predList <- list()
     for(i in 1:length(lev)) {
-      predList[[i]] <- do.call(c,lapply(split(tab[,object$levels[2]],tab[,"rowIndex"]),mean))
+      predList[[i]] <- do.call(c,lapply(split(tab[,lev[i]],tab[,"rowIndex"]),mean))
       }
     pred <- do.call(cbind,predList)
     colnames(pred) <- lev
@@ -291,12 +291,12 @@ importancePlot <- function(caret_fit, ylab="", add.grid=TRUE, cex.points=0.8, ce
 # roc curve
 rocPlot <- function(caret_fit, lwd=2, quiet=TRUE, ...) {
   if(identical(caret_fit$modelType,"Classification")==F & length(caret_fit$levels)==2) stop("Implemented for binary classification tasks only",call.=F)
-  #tab <- caret_fit$pred
-  #pred <- do.call(c,lapply(split(tab[,caret_fit$levels[2]],tab[,"rowIndex"]),mean))
-  #obs <- do.call(c,lapply(split(tab[,"obs"],tab[,"rowIndex"]),function(z){z[1]}))
-  fit <- fitted(caret_fit)
+  tab <- caret_fit$pred
+  pred <- do.call(c,lapply(split(tab[,caret_fit$levels[2]],tab[,"rowIndex"]),mean))
+  obs <- do.call(c,lapply(split(tab[,"obs"],tab[,"rowIndex"]),function(z){z[1]}))
+  #fit <- fitted(caret_fit)
   suppressWarnings(
-    rocObj <- pROC::roc(response=fit$observed, predictor=fit$predicted, lwd=lwd, quiet=quiet, ...)
+    rocObj <- pROC::roc(response=obs, predictor=pred, lwd=lwd, quiet=quiet, ...)
     )
   plot(rocObj, ...)
   }
