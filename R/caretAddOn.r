@@ -152,7 +152,7 @@ bestTune <- function(caret_fit) {
   }
 
 # get CV predictions - fitted method for class 'train'
-fitted.train <- function(object) {
+fitted.train <- function(object, ...) {
   tab <- object$pred
   if(identical(object$modelType,"Regression")) {
     pred <- do.call(c,lapply(split(tab[,"pred"],tab[,"rowIndex"]),mean))

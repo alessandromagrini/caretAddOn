@@ -3,6 +3,8 @@ export(loglm, svm_linear, svm_radial, loglm_mean, loglm_median,
        bestTune, addTerms, stepCV, vifCalc, enetCoef,
        multiBoxPlot, multiScatPlot, corPlot, trainPlot, importancePlot, rocPlot, predPlot)
 
+S3method(fitted, train)
+
 importFrom("graphics", "abline", "axis", "box", "grid", "points", "lines", "text", "boxplot", "barplot")
 importFrom("stats", "model.matrix", "cor", "na.omit", "predict", "terms", "update", "var", "median", "cooks.distance", "formula", "lm", "glm", "quantile", "fitted")
 importFrom("caret", "train")
