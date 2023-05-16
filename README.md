@@ -8,14 +8,13 @@ M. Kuhn (2022). caret: Classification and Regression Training. R package version
 Github page: <a href="https://github.com/topepo/caret">https://github.com/topepo/caret</a>
 
 New models:
-- `loglm`: linear regression on log transformed response variable, with prediction made through either the conditional expected value (`bias.adj=TRUE') or the conditional median (`bias.adj=FALSE')
+- `loglm`: linear regression on log transformed response variable, with prediction made through either the conditional expected value (`bias.adj=TRUE`) or the conditional median (`bias.adj=FALSE`)
 - `svm_linear`: support vector machine/regression with linear kernel
 - `svm_radial`: support vector machine/regression with radial kernel
 
 New summaries:
 - `customSummaryClass`: summary for classification tasks, including AUC and optimized specificity/sensitivity in case of class unbalance
 - `customSummaryReg`: summary for regression taks, including RMSE, MAE, MAPE, and R-squared
-- `customSummaryReg_median`: summary for regression taks, including the median version of RMSE, MAE, and MAPE (robust to outliers)
 
 New general-purpose functions:
 - `bestTune`: best tuning of hyperparameters
@@ -30,6 +29,6 @@ New graphics:
 - `multiScatPlot`: scatterplots or boxplots displaying the relationship between the response variable and each explanatory variable
 - `corPlot`: correlogram conceived to check collinearity among the explanatory variables
 - `trainPlot`: graphic displaying any one metric as a function of any one hyperparameter
-- `importancePlot`: graphic of variable importance for objects of class `rpart` and `randomForest`
+- `importancePlot`: graphic displaying variable importance metrics
 - `rocPlot`: roc curve (only for binary classification)
 - `predPlot`: scatterplot of observed values versus predicted values (only for regression tasks)
