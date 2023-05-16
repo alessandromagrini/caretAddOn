@@ -16,14 +16,6 @@ New summaries:
 - `customSummaryClass`: summary for classification tasks, including AUC and optimized specificity/sensitivity in case of class unbalance
 - `customSummaryReg`: summary for regression taks, including RMSE, MAE, MAPE, and R-squared
 
-New general-purpose functions:
-- `bestTune`: best tuning of hyperparameters
-- `fitted` method for class `train`: cross-validation prediction for each unit
-- `addTerms`: addition of polynomial and/or logarithmic terms to a formula
-- `stepCV`: stepwise pruning of explanatory variables through cross-validation
-- `enetCoef`: coefficients at best tuning of hyperparameters for an object of class `glmnet`
-- `vifCalc`: computation of variance inflation factors, conceived to check collinearity among the explanatory variables
-
 New graphics:
 - `multiBoxPlot`: boxplots for multiple variables
 - `multiScatPlot`: scatterplots or boxplots displaying the relationship between the response variable and each explanatory variable
@@ -32,3 +24,11 @@ New graphics:
 - `importancePlot`: graphic displaying variable importance metrics
 - `rocPlot`: roc curve (only for binary classification)
 - `predPlot`: scatterplot of observed values versus predicted values (only for regression tasks)
+
+New general-purpose functions:
+- `bestTune`: best tuning of hyperparameters
+- `fitted` (S3 method for class `train`): cross-validation prediction for each unit
+- `addTerms`: addition of polynomial and/or logarithmic terms to a formula
+- `stepCV`: stepwise pruning of explanatory variables through cross-validation
+- `vifCalc`: computation of variance inflation factors, conceived to check collinearity among the explanatory variables
+- `enetCoef`: coefficients at best tuning of hyperparameters for an object of class `glmnet`
