@@ -303,6 +303,7 @@ rocPlot <- function(caret_fit, lwd=2, quiet=TRUE, ...) {
 
 # multiple univariate boxplots
 multiBoxPlot <- function(x.names=NULL, data, coef=1.5, outliers=TRUE, y.axis.size=8, title.size=10, alpha=0.1, outlier.alpha=1, outlier.size=0.6, outlier.color="black", ...) {
+  if(!is.logical(outliers)) outliers <- T else outliers <- outliers[1]
   if(is.null(x.names)) x.names <- colnames(data)
   x2del <- c()
   isQual <- function(x){!is.numeric(x)||nlevels(factor(x))<3}
@@ -336,6 +337,7 @@ multiBoxPlot <- function(x.names=NULL, data, coef=1.5, outliers=TRUE, y.axis.siz
 
 # multiple bivariate scatterplots
 multiScatPlot <- function(y.name, x.names=NULL, data, coef=1.5, outliers=FALSE, axis.size=6, label.size=10, point.size=0.6, ...) {
+  if(!is.logical(outliers)) outliers <- F else outliers <- outliers[1]
   if(is.null(x.names)) x.names <- colnames(data)
   yaux <- intersect(y.name,colnames(data))
   x.names <- setdiff(intersect(x.names,colnames(data)),yaux)
@@ -356,8 +358,8 @@ multiScatPlot <- function(y.name, x.names=NULL, data, coef=1.5, outliers=FALSE, 
       }
     } else {
     for(i in 1:length(x.names)) {
-      if(is.numeric(data[,x.names[i]])) {
-        if(outliers[1]) {
+      if(is.numeric(data[,x.names[i]])&&nlevels(factor(data[,x.names[i]]))>2) {
+        if(outliers) {
           irng <- range(data[,x.names[i]],na.rm=T)
           icol <- "black"
           } else {
