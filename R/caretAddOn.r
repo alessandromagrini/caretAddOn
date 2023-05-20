@@ -301,42 +301,8 @@ rocPlot <- function(caret_fit, lwd=2, quiet=TRUE, ...) {
   plot(rocObj, ...)
   }
 
-# multiple univariate boxplots
-multiBoxPlot <- function(x.names=NULL, data, coef=1.5, outliers=TRUE, y.axis.size=8, title.size=10, alpha=0.1, outlier.alpha=1, outlier.size=0.6, outlier.color="black", ...) {
-  if(!is.logical(outliers)) outliers <- T else outliers <- outliers[1]
-  if(is.null(x.names)) x.names <- colnames(data)
-  x2del <- c()
-  isQual <- function(x){!is.numeric(x)||nlevels(factor(x))<3}
-  for(i in 1:length(x.names)) {
-    if((x.names[i]%in%colnames(data))==F||isQual(data[,x.names[i]])) x2del <- c(x2del,x.names[i])
-    }
-  x.names <- setdiff(x.names,x2del)
-  if(length(x.names)==0) stop("No valid variable name in argument 'x.names'")
-  pp <- list()
-  for(i in 1:length(x.names)) {
-    idat <- data[,x.names[i]]
-    if(outliers) {
-      irng <- range(idat,na.rm=T)
-      icol <- outlier.color
-      } else {
-      irng <- boxplot.stats(idat, coef=coef)$stats[c(1,5)]
-      icol <- NA
-      }
-    pp[[i]] <- eval(substitute(
-      ggplot() +
-        geom_boxplot(aes(y=idat), alpha=alpha, outlier.alpha=outlier.alpha, outlier.size=outlier.size, coef=coef, outlier.color=icol, ...) +
-        scale_x_discrete() +
-        coord_cartesian(ylim=irng) +
-        labs(title=x.names[i], y="", x="") +
-        theme(axis.text.y=element_text(size=y.axis.size),
-              plot.title=element_text(size=title.size))     
-      ), list(i=i))
-    }
-  cowplot::plot_grid(plotlist=pp)
-  }
-
-# multiple bivariate scatterplots
-multiScatPlot <- function(y.name, x.names=NULL, data, coef=1.5, outliers=FALSE, axis.size=6, label.size=10, point.size=0.6, ...) {
+# multiple bivariate plots
+multiPairPlot <- function(y.name, x.names=NULL, data, coef=1.5, outliers=TRUE, axis.size=6, label.size=10, point.size=0.6, smooth.method="gam", smooth.size=0.6, smooth.color="blue", ...) {
   if(!is.logical(outliers)) outliers <- F else outliers <- outliers[1]
   if(is.null(x.names)) x.names <- colnames(data)
   yaux <- intersect(y.name,colnames(data))
@@ -350,7 +316,7 @@ multiScatPlot <- function(y.name, x.names=NULL, data, coef=1.5, outliers=FALSE, 
       pp[[i]] <- eval(substitute(
         ggplot() +
           geom_point(aes(y=data[,y.name],x=data[,x.names[i]]), size=point.size, ...) +
-          #geom_smooth(se=T,na.rm=T) +
+          geom_smooth(aes(y=data[,y.name],x=data[,x.names[i]]), formula=y~x, size=smooth.size, color=smooth.color, se=T, na.rm=T, method=smooth.method) +
           labs(x=x.names[i], y=y.name) +
           theme(axis.text=element_text(size=axis.size),
                 axis.title=element_text(size=label.size))
