@@ -17,8 +17,7 @@ New summaries:
 - `customSummaryReg`: summary for regression taks, including RMSE, MAE, MAPE, and R-squared
 
 New graphics:
-- `multiBoxPlot`: boxplots for multiple variables
-- `multiScatPlot`: scatterplots or boxplots displaying the relationship between the response variable and each explanatory variable
+- `multiPairPlot`: bivariate graphics displaying the relationship between one response variable and several explanatory variables
 - `corPlot`: correlogram conceived to check collinearity among the explanatory variables
 - `trainPlot`: graphic displaying any one metric as a function of any one hyperparameter
 - `importancePlot`: graphic displaying variable importance metrics
