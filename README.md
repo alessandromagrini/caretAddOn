@@ -22,6 +22,7 @@ New graphics:
 - `trainPlot`: graphic displaying any one metric as a function of any one hyperparameter
 - `importancePlot`: graphic displaying variable importance metrics
 - `rocPlot`: roc curve (only for binary classification)
+- `densPlot`: graphic displaying kernel density estimations for class probabilities (only for binary classification)
 - `predPlot`: scatterplot of observed values versus predicted values (only for regression tasks)
 
 New general-purpose functions:
