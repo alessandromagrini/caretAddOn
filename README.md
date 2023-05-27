@@ -20,7 +20,7 @@ New graphics:
 - `multiPairPlot`: bivariate graphics displaying the relationship between one response variable and several explanatory variables
 - `corPlot`: correlogram conceived to check collinearity among the explanatory variables
 - `trainPlot`: graphic displaying any one metric as a function of any one hyperparameter
-- `importancePlot`: graphic displaying variable importance metrics
+- `importancePlot`: graphic displaying variable importance metrics computed through the function `importanceCalc` (see below)
 - `rocPlot`: roc curve (only for binary classification)
 - `densPlot`: graphic displaying kernel density estimations for class probabilities (only for binary classification)
 - `predPlot`: scatterplot of observed values versus predicted values (only for regression tasks)
@@ -28,7 +28,7 @@ New graphics:
 New general-purpose functions:
 - `bestTune`: best tuning of hyperparameters
 - `fitted` (S3 method for class `train`): cross-validation prediction for each unit
-- `importanceCalc`: computation of variable importance. For models of class `lm` or `glm`, the proportion of explained variance is used.
+- `importanceCalc`: computation of variable importance metrics. For models of class `lm` or `glm`, the proportion of explained variance is used.
 - `vifCalc`: computation of variance inflation factors, conceived to check collinearity among the explanatory variables
 - `addTerms`: addition of polynomial and/or logarithmic terms to a formula
 - `stepCV`: stepwise pruning of explanatory variables through cross-validation
