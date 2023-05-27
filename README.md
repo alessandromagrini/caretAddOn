@@ -28,7 +28,8 @@ New graphics:
 New general-purpose functions:
 - `bestTune`: best tuning of hyperparameters
 - `fitted` (S3 method for class `train`): cross-validation prediction for each unit
+- `importanceCalc`: computation of variable importance. For models of class `lm` or `glm`, the proportion of explained variance is used.
+- `vifCalc`: computation of variance inflation factors, conceived to check collinearity among the explanatory variables
 - `addTerms`: addition of polynomial and/or logarithmic terms to a formula
 - `stepCV`: stepwise pruning of explanatory variables through cross-validation
-- `vifCalc`: computation of variance inflation factors, conceived to check collinearity among the explanatory variables
 - `enetCoef`: coefficients at best tuning of hyperparameters for an object of class `glmnet`
