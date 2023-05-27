@@ -202,7 +202,7 @@ addTerms <- function(formula, max.deg=1, add.log=FALSE, data) {
   if(!is.numeric(max.deg)) max.deg <- 1 else max.deg <- max(1,round(max.deg))
   if(!is.logical(add.log)) add.log <- F else add.log <- add.log[1]
   nomi <- extrVar(formula, data=data)
-  if(length(nomi)>0) {
+  if(length(nomi)>0 & max.deg>1) {
     xstr <- c()
     for(i in 1:length(nomi)) {
       xstr <- c(xstr, nomi[i])
@@ -273,22 +273,27 @@ trainPlot <- function(caret_fit, par=NULL, metric=NULL, ylab=NULL, xlab=NULL, vc
   }
 
 # plot of variable importance
-importancePlot <- function(caret_fit, ylab="", add.grid=TRUE, cex.points=0.8, cex.names=0.8, dist.names=0.5, ...) {
+importancePlot <- function(caret_fit, plot=TRUE, output=TRUE, ylab="", add.grid=TRUE, cex.points=0.8, cex.names=0.8, dist.names=0.5, ...) {
+  if(!is.logical(plot)) plot <- T else plot <- plot[1]
+  if(!is.logical(output)) output <- T else output <- output[1]
   imp0 <- tryCatch(caret::varImp(caret_fit)$importance,error=function(e){NULL})
   if(!is.null(imp0)) {
     imp <- imp0[,1]
     names(imp) <- rownames(imp0)
     impS <- imp/sum(imp)
     impOK <- sort(impS)
-    plot(impOK, type="n", xaxt="n", xlab="", ylab=ylab, ...)
-    if(add.grid) grid()
-    points(impOK, cex=cex.points)
-    axis(1, at=1:length(impOK), labels=names(impOK), las=2, cex.axis=cex.names, tick=F, mgp=c(3,dist.names,0))
-    box()
+    if(plot) {
+      plot(impOK, type="n", xaxt="n", xlab="", ylab=ylab, ...)
+      if(add.grid) grid()
+      points(impOK, cex=cex.points)
+      axis(1, at=1:length(impOK), labels=names(impOK), las=2, cex.axis=cex.names, tick=F, mgp=c(3,dist.names,0))
+      box()
+      }
+    if(output) impOK
     }
   }
 
-# roc curve
+# roc curve (binary classification only)
 rocPlot <- function(caret_fit, lwd=2, quiet=TRUE, ...) {
   if(identical(caret_fit$modelType,"Classification")==F & length(caret_fit$levels)==2) stop("Implemented for binary classification tasks only",call.=F)
   tab <- caret_fit$pred
@@ -301,14 +306,34 @@ rocPlot <- function(caret_fit, lwd=2, quiet=TRUE, ...) {
   plot(rocObj, ...)
   }
 
+# density plot (binary classification only)
+densPlot <- function(caret_fit, main="", lty=c(1,1), lwd=c(1,1), col=c("blue","red"), cut.lty=2, cut.col=1, ...) {
+  if(identical(caret_fit$modelType,"Classification")==F & length(caret_fit$levels)==2) stop("Implemented for binary classification tasks only",call.=F)
+  tab <- caret_fit$pred
+  pred <- do.call(c,lapply(split(tab[,caret_fit$levels[2]],tab[,"rowIndex"]),mean))
+  obs <- do.call(c,lapply(split(tab[,"obs"],tab[,"rowIndex"]),function(z){z[1]}))
+  suppressWarnings(
+    rocObj <- pROC::roc(response=obs, predictor=pred, quiet=T)
+    )
+  cut <- pROC::coords(rocObj, x="best", ret="threshold")
+  p1 <- pred[which(obs==caret_fit$levels[1])]
+  p2 <- pred[which(obs==caret_fit$levels[2])]
+  if(length(lty)<2) lty <- rep(lty,2)
+  if(length(lwd)<2) lty <- rep(lwd,2)
+  if(length(col)<2) lty <- rep(col,2)
+  plot(density(p1), main=main, lwd=lwd[1], lty=lty[1], col=col[1], ...)
+  lines(density(p2), lwd=lwd[2], lty=lty[2], col=col[2])
+  abline(v=cut, lty=cut.lty, col=cut.col)
+  }
+
 # multiple bivariate plots
 multiPairPlot <- function(y.name, x.names=NULL, data, coef=1.5, outliers=TRUE, axis.size=6, label.size=10, point.size=0.6, smooth.method="gam", smooth.size=0.6, smooth.color="blue", ...) {
   if(!is.logical(outliers)) outliers <- F else outliers <- outliers[1]
   if(is.null(x.names)) x.names <- colnames(data)
   yaux <- intersect(y.name,colnames(data))
   x.names <- setdiff(intersect(x.names,colnames(data)),yaux)
-  if(length(yaux)==0) stop("No valid variable name in argument 'y.name'") 
-  if(length(x.names)==0) stop("No valid variable name in argument 'x.names'") 
+  if(length(yaux)==0) stop("No valid variable name in argument 'y.name'",call.=F) 
+  if(length(x.names)==0) stop("No valid variable name in argument 'x.names'",call.=F) 
   y.name <- yaux[1]
   pp <- list()
   if(is.numeric(data[,y.name])) {
@@ -361,8 +386,9 @@ multiPairPlot <- function(y.name, x.names=NULL, data, coef=1.5, outliers=TRUE, a
   cowplot::plot_grid(plotlist=pp)
   }
 
-# observed versus predicted values
+# observed versus predicted values (regression only)
 predPlot <- function(caret_fit, xlab="observed", ylab="predicted",cex=0.8, col="black",  add.grid=TRUE, show.id=FALSE, ...) {
+  if(identical(caret_fit$modelType,"Regression")==F) stop("Implemented for regression tasks only",call.=F)
   fit <- fitted(caret_fit)
   plot(fit$observed, fit$predicted, xlab=xlab, ylab=ylab, type="n", ...)
   if(add.grid) grid()
