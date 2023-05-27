@@ -272,24 +272,35 @@ trainPlot <- function(caret_fit, par=NULL, metric=NULL, ylab=NULL, xlab=NULL, vc
   abline(v=caret_fit$bestTune, col=vcol)
   }
 
-# plot of variable importance
-importancePlot <- function(caret_fit, plot=TRUE, output=TRUE, ylab="", add.grid=TRUE, cex.points=0.8, cex.names=0.8, dist.names=0.5, ...) {
-  if(!is.logical(plot)) plot <- T else plot <- plot[1]
-  if(!is.logical(output)) output <- T else output <- output[1]
-  imp0 <- tryCatch(caret::varImp(caret_fit)$importance,error=function(e){NULL})
-  if(!is.null(imp0)) {
-    imp <- imp0[,1]
-    names(imp) <- rownames(imp0)
-    impS <- imp/sum(imp)
-    impOK <- sort(impS)
-    if(plot) {
-      plot(impOK, type="n", xaxt="n", xlab="", ylab=ylab, ...)
-      if(add.grid) grid()
-      points(impOK, cex=cex.points)
-      axis(1, at=1:length(impOK), labels=names(impOK), las=2, cex.axis=cex.names, tick=F, mgp=c(3,dist.names,0))
-      box()
+# variable importance
+importanceCalc <- function(caret_fit, ordered=TRUE) {
+  if(!is.logical(ordered)) ordered <- T else ordered <- ordered[1]
+  imp0 <- tryCatch(caret::varImp(caret_fit, scale=FALSE)$importance, error=function(e){NULL})
+  if(sum(class(caret_fit$finalModel)%in%c("lm","glm"))>0) { 
+    imp2 <- as.matrix(anova(caret_fit$finalModel))
+    imp <- imp2[rownames(imp0),2]
+    if(ordered) impS <- sort(imp) else impS <- imp
+    impS/sum(impS)
+    } else {
+    if(!is.null(imp0)) {
+      imp <- imp0[,1]
+      names(imp) <- rownames(imp0)
+      if(ordered) impS <- sort(imp) else impS <- imp
+      impS/sum(impS)
       }
-    if(output) impOK
+    }
+  }
+
+# plot of variable importance
+importancePlot <- function(caret_fit, ordered=TRUE, ylab="", add.grid=TRUE, line.lty=1, cex.points=0.8, cex.names=0.8, dist.names=0.5, ...) {
+  imp <- importanceCalc(caret_fit, ordered=ordered)
+  if(!is.null(imp)) {
+    plot(imp, type="n", xaxt="n", xlab="", ylab=ylab, ...)
+    if(add.grid) grid()
+    points(imp, cex=cex.points, ...)
+    segments(1:length(imp), 0, 1:length(imp), imp, lty=line.lty)
+    axis(1, at=1:length(imp), labels=names(imp), las=2, cex.axis=cex.names, tick=F, mgp=c(3,dist.names,0))
+    box()
     }
   }
 

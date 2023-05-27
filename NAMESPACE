@@ -1,12 +1,12 @@
 export(loglm, svm_linear, svm_radial, loglm_mean, loglm_median,
        customSummaryClass, customSummaryReg,
-       bestTune, addTerms, stepCV, vifCalc, enetCoef,
+       bestTune, addTerms, importanceCalc, vifCalc, stepCV, enetCoef,
        multiPairPlot, corPlot, trainPlot, importancePlot, rocPlot, densPlot, predPlot)
 
 S3method(fitted, train)
 
-importFrom("graphics", "abline", "axis", "box", "grid", "points", "lines", "text", "boxplot", "barplot")
-importFrom("stats", "model.matrix", "cor", "na.omit", "predict", "terms", "update", "var", "formula", "lm", "glm", "quantile", "fitted", "density")
+importFrom("graphics", "abline", "axis", "box", "grid", "points", "lines", "text", "boxplot", "barplot", "segments")
+importFrom("stats", "model.matrix", "cor", "na.omit", "predict", "terms", "update", "var", "formula", "lm", "glm", "anova", "quantile", "fitted", "density")
 importFrom("caret", "train")
 importFrom("ggplot2", "ggplot")
 importFrom("cowplot", "plot_grid")
