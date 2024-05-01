@@ -130,14 +130,17 @@ customSummaryReg <- function(data, lev = NULL, model = NULL) {
   ypred <- data$pred
   mse <- mean((yobs-ypred)^2)
   mae <- mean(abs(yobs-ypred))
+  rmse <- sqrt(mse)
+  rel_rmse <- rmse/sd(yobs,na.rm=T)
+  rel_mae <- mae/mean(abs(yobs-mean(yobs,na.rm=T)),na.rm=T)
   if(var(ypred)>0) rsq <- (cor(yobs,ypred))^2 else rsq <- NA
   if(sum(yobs<=0)==0) {
     mape <- 100*mean(abs((yobs-ypred)/yobs))
-    out <- c(mse,sqrt(mse),mae,mape,rsq)
-    names(out) <- c("MSE","RMSE","MAE","MAPE","R-squared")    
+    out <- c(mse,rmse,mae,rel_rmse,rel_mae,mape,rsq)
+    names(out) <- c("MSE","RMSE","MAE","Relative_RMSE","Relative_MAE","MAPE","R-squared")
     } else {
-    out <- c(mse,sqrt(mse),mae,rsq)
-    names(out) <- c("MSE","RMSE","MAE","R-squared")
+    out <- c(mse,rmse,mae,rel_rmse,rel_mae,rsq)
+    names(out) <- c("MSE","RMSE","MAE","Relative_RMSE","Relative_MAE","R-squared")
     }
   out
   }
@@ -156,7 +159,7 @@ fitted.train <- function(object, ...) {
   tab <- object$pred
   if(identical(object$modelType,"Regression")) {
     pred <- do.call(c,lapply(split(tab[,"pred"],tab[,"rowIndex"]),mean))
-    obs <- do.call(c,lapply(split(tab[,"obs"],tab[,"rowIndex"]),function(z){z[1]}))  
+    obs <- do.call(c,lapply(split(tab[,"obs"],tab[,"rowIndex"]),function(z){z[1]}))
     } else {
     lev <- object$levels
     predList <- list()
@@ -167,7 +170,8 @@ fitted.train <- function(object, ...) {
     colnames(pred) <- lev
     obs <- factor(do.call(c,lapply(split(tab[,"obs"],tab[,"rowIndex"]),function(z){z[1]})), levels=lev)
     }
-  tab <- data.frame(id=rownames(object$trainingData),observed=obs, predicted=pred)
+  ind <- as.numeric(names(obs))
+  tab <- data.frame(id=rownames(object$trainingData)[ind], observed=obs, predicted=pred)
   tab
   }
 
@@ -279,13 +283,13 @@ importanceCalc <- function(caret_fit, ordered=TRUE) {
   if(sum(class(caret_fit$finalModel)%in%c("lm","glm"))>0) { 
     imp2 <- as.matrix(anova(caret_fit$finalModel))
     imp <- imp2[rownames(imp0),2]
-    if(ordered) impS <- sort(imp) else impS <- imp
+    if(ordered) impS <- sort(imp,decreasing=T) else impS <- imp
     impS/sum(impS)
     } else {
     if(!is.null(imp0)) {
       imp <- imp0[,1]
       names(imp) <- rownames(imp0)
-      if(ordered) impS <- sort(imp) else impS <- imp
+      if(ordered) impS <- sort(imp,decreasing=T) else impS <- imp
       impS/sum(impS)
       }
     }
@@ -310,7 +314,6 @@ rocPlot <- function(caret_fit, lwd=2, quiet=TRUE, ...) {
   tab <- caret_fit$pred
   pred <- do.call(c,lapply(split(tab[,caret_fit$levels[2]],tab[,"rowIndex"]),mean))
   obs <- do.call(c,lapply(split(tab[,"obs"],tab[,"rowIndex"]),function(z){z[1]}))
-  #fit <- fitted(caret_fit)
   suppressWarnings(
     rocObj <- pROC::roc(response=obs, predictor=pred, lwd=lwd, quiet=quiet, ...)
     )
@@ -398,13 +401,13 @@ multiPairPlot <- function(y.name, x.names=NULL, data, coef=1.5, outliers=TRUE, a
   }
 
 # observed versus predicted values (regression only)
-predPlot <- function(caret_fit, xlab="observed", ylab="predicted",cex=0.8, col="black",  add.grid=TRUE, show.id=FALSE, ...) {
+predPlot <- function(caret_fit, xlab="observed", ylab="predicted", cex=0.8, col="black",  add.grid=TRUE, show.id=FALSE, ...) {
   if(identical(caret_fit$modelType,"Regression")==F) stop("Implemented for regression tasks only",call.=F)
   fit <- fitted(caret_fit)
   plot(fit$observed, fit$predicted, xlab=xlab, ylab=ylab, type="n", ...)
   if(add.grid) grid()
   if(show.id) {
-    text(fit$observed, fit$predicted, labels=rownames(fit), cex=cex, col=col)
+    text(fit$observed, fit$predicted, labels=fit$id, cex=cex, col=col)
     } else {
     points(fit$observed, fit$predicted, cex=cex, col=col)
     }
@@ -418,37 +421,4 @@ corPlot <- function(data, upper.panel=panel.cor, ...) {
   suppressWarnings(
     corrgram(dataOK, upper.panel=upper.panel, ...)
     )
-  }
-
-
-###  OBSOLETE FUNCTIONS  ###
-
-# log-linear regression - mean
-loglm_mean <- caret::getModelInfo("lm", regex = FALSE)[[1]]
-loglm_mean$fit <- function(x, y, wts, param, lev, last, classProbs, ...) {
-  dat <- if(is.data.frame(x)) x else as.data.frame(x, stringsAsFactors = TRUE)
-  dat$.outcome <- log(y)
-  if(!is.null(wts)) {
-    if(param$intercept)
-      out <- lm(.outcome ~ ., data = dat, weights = wts, ...)
-    else
-      out <- lm(.outcome ~ 0 + ., data = dat, weights = wts, ...)
-    } else {
-    if(param$intercept)
-      out <- lm(.outcome ~ ., data = dat, ...)
-    else
-      out <- lm(.outcome ~ 0 + ., data = dat, ...)
-    }
-  out
-  }
-loglm_mean$predict <- function(modelFit, newdata, submodels = NULL) {
-  if(!is.data.frame(newdata)) newdata <- as.data.frame(newdata, stringsAsFactors = TRUE)
-  exp(predict(modelFit, newdata)+0.5*summary(modelFit)$sigma^2)
-  }
-
-# log-linear regression - median
-loglm_median <- loglm_mean
-loglm_median$predict <- function(modelFit, newdata, submodels = NULL) {
-  if(!is.data.frame(newdata)) newdata <- as.data.frame(newdata, stringsAsFactors = TRUE)
-  exp(predict(modelFit, newdata))
   }
