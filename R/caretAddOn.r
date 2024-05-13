@@ -157,6 +157,7 @@ bestTune <- function(caret_fit) {
 # get CV predictions - fitted method for class 'train'
 fitted.train <- function(object, ...) {
   tab <- object$pred
+  if(is.null(tab)) stop("Argument 'savePredictions' is not set to 'final' in trainControl()")
   if(identical(object$modelType,"Regression")) {
     pred <- do.call(c,lapply(split(tab[,"pred"],tab[,"rowIndex"]),mean))
     obs <- do.call(c,lapply(split(tab[,"obs"],tab[,"rowIndex"]),function(z){z[1]}))
@@ -164,6 +165,7 @@ fitted.train <- function(object, ...) {
     lev <- object$levels
     predList <- list()
     for(i in 1:length(lev)) {
+      if((lev[i]%in%colnames(tab))==F) stop("Argument 'classProbs' is not set to TRUE in trainControl()")
       predList[[i]] <- do.call(c,lapply(split(tab[,lev[i]],tab[,"rowIndex"]),mean))
       }
     pred <- do.call(cbind,predList)
