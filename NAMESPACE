@@ -5,7 +5,7 @@ export(loglm, svm_linear, svm_radial,
 
 S3method(fitted, train)
 
-importFrom("graphics", "abline", "axis", "box", "grid", "points", "lines", "text", "boxplot", "barplot", "segments")
+importFrom("graphics", "abline", "axis", "box", "grid", "points", "lines", "text", "boxplot", "barplot", "segments", "legend")
 importFrom("stats", "model.matrix", "sd", "cor", "na.omit", "predict", "terms", "update", "var", "formula", "lm", "glm", "drop1", "quantile", "fitted", "density")
 importFrom("caret", "train")
 importFrom("ggplot2", "ggplot")

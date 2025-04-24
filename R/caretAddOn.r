@@ -326,7 +326,7 @@ rocPlot <- function(caret_fit, lwd=2, quiet=TRUE, ...) {
   }
 
 # density plot (binary classification only)
-densPlot <- function(caret_fit, main="", lty=c(1,1), lwd=c(1,1), col=c("blue","red"), cut.lty=2, cut.col=1, ...) {
+densPlot <- function(caret_fit, main="", lty=c(1,1), lwd=c(1,1), col=c("blue","red"), cut.lty=2, cut.col=1, legend.pos="topright", legend.text=c("neg.","pos."), legend.cex=0.8, ...) {
   if(identical(caret_fit$modelType,"Classification")==F & length(caret_fit$levels)==2) stop("Implemented for binary classification tasks only",call.=F)
   tab <- caret_fit$pred
   pred <- do.call(c,lapply(split(tab[,caret_fit$levels[2]],tab[,"rowIndex"]),mean))
@@ -343,6 +343,7 @@ densPlot <- function(caret_fit, main="", lty=c(1,1), lwd=c(1,1), col=c("blue","r
   plot(density(p1), main=main, lwd=lwd[1], lty=lty[1], col=col[1], ...)
   lines(density(p2), lwd=lwd[2], lty=lty[2], col=col[2])
   abline(v=cut, lty=cut.lty, col=cut.col)
+  legend(legend.pos, legend=legend.text, lty=1, col=col, cex=legend.cex, bty="n")
   }
 
 # multiple bivariate plots
