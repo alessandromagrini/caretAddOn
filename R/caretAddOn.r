@@ -104,15 +104,15 @@ customSummaryClass <- function(data, lev = NULL, model = NULL) {
     #  rocAUC <- rocObject$auc
     #  }
     bayes <- pROC::coords(rocObject, x=0.5, ret=c("spec","sens"), transpose=T)
-    youd <- pROC::coords(rocObject, x="best", ret=c("spec","sens","thresh"), transpose=T)
+    youd <- pROC::coords(rocObject, x="best", ret=c("thresh","spec","sens"), transpose=T)
     if(is.matrix(youd)) {
-      d <- apply(youd,2,function(x){abs(x[1]-x[2])})
+      d <- apply(youd,2,function(x){abs(x[2]-x[3])})
       youd <- youd[,which.min(d)]
       }
-    if(youd[3]==Inf) youd[3] <- 1
-    if(youd[3]==-Inf) youd[3] <- 0
+    if(youd[1]==Inf) youd[1] <- 1
+    if(youd[1]==-Inf) youd[1] <- 0
     out <- c(rocObject$auc, unlist(bayes), unlist(youd))
-    names(out) <- c("Accuracy","Spec","Sens","Spec_youden", "Sens_youden","cut_youden")
+    names(out) <- c("Accuracy","Spec","Sens", "cut_youden", "Spec_youden", "Sens_youden")
     out
     } else {
     cmat <- table(data$obs,data$pred)
@@ -279,13 +279,16 @@ trainPlot <- function(caret_fit, par=NULL, metric=NULL, ylab=NULL, xlab=NULL, vc
   }
 
 # variable importance
-importanceCalc <- function(caret_fit, ordered=TRUE) {
+importanceCalc <- function(caret_fit, ordered=FALSE) {
   if(!is.logical(ordered)) ordered <- T else ordered <- ordered[1]
   imp0 <- tryCatch(caret::varImp(caret_fit, scale=FALSE)$importance, error=function(e){NULL})
-  if(sum(class(caret_fit$finalModel)%in%c("lm","glm"))>0) { 
-    imp2 <- as.matrix(anova(caret_fit$finalModel))
-    imp <- imp2[rownames(imp0),2]
+  if(sum(class(caret_fit$finalModel)%in%c("lm","glm"))>0) {
+    imp2 <- drop1(caret_fit$finalModel)
+    dev <- imp2$Deviance
+    names(dev) <- rownames(imp2)
+    imp <- dev[setdiff(names(dev),"<none>")]
     if(ordered) impS <- sort(imp,decreasing=T) else impS <- imp
+    attr(impS,"metric") <- "proportion of deviance"
     impS/sum(impS)
     } else {
     if(!is.null(imp0)) {

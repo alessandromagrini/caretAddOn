@@ -2,7 +2,7 @@ Package: caretAddOn
 Type: Package
 Title: Additional Functionalities for the 'caret' Package
 Version: 0.1.1
-Date: 2024-05-01
+Date: 2025-04-24
 Author: Alessandro Magrini
 Maintainer: Alessandro Magrini <alessandro.magrini@unifi.it>
 Description: Additional functionalities for the 'caret' package, including new models, new summaries, graphical tools, general purpose functions, and datasets.
@@ -10,4 +10,4 @@ Depends: R (>= 3.5.0), caret, e1071, pROC, randomForest
 Imports: graphics, stats, ggplot2, corrgram, cowplot
 License: GPL-2
 NeedsCompilation: no
-Packaged: 2024-05-13 08:57:50 UTC; Alessandro
+Packaged: 2025-04-24 09:15:19 UTC; Alessandro
