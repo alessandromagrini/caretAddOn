@@ -28,7 +28,7 @@ New graphics:
 New general-purpose functions:
 - `bestTune`: best tuning of hyperparameters
 - `fitted` (S3 method for class `train`): cross-validation prediction for each unit
-- `importanceCalc`: computation of variable importance metrics. For models of class `lm` or `glm`, the proportion of explained variance is used.
+- `importanceCalc`: computation of variable importance metrics. For models of class `lm` or `glm`, the proportion of explained deviance is used in place of the absolute t-statistic.
 - `vifCalc`: computation of variance inflation factors, conceived to check collinearity among the explanatory variables
 - `addTerms`: addition of polynomial and/or logarithmic terms to a formula
 - `stepCV`: stepwise pruning of explanatory variables through cross-validation
