@@ -18,11 +18,11 @@ New summaries:
 
 New graphics:
 - `multiPairPlot`: bivariate graphics displaying the relationship between one response variable and several explanatory variables
-- `corPlot`: correlogram conceived to check collinearity among the explanatory variables
+- `corPlot`: correlogram, conceived to check collinearity among the explanatory variables
 - `trainPlot`: graphic displaying any one metric as a function of any one hyperparameter
 - `importancePlot`: graphic displaying variable importance metrics computed through the function `importanceCalc` (see below)
 - `rocPlot`: roc curve (only for binary classification)
-- `densPlot`: graphic displaying kernel density estimations for class probabilities (only for binary classification)
+- `densPlot`: graphic displaying kernel density estimations for class probabilities (only for binary classification), conceived to assess the discriminative power
 - `predPlot`: scatterplot of observed values versus predicted values (only for regression tasks)
 
 New general-purpose functions:
