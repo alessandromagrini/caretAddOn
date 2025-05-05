@@ -284,7 +284,8 @@ importanceCalc <- function(caret_fit, ordered=FALSE) {
   imp0 <- tryCatch(caret::varImp(caret_fit, scale=FALSE)$importance, error=function(e){NULL})
   if(sum(class(caret_fit$finalModel)%in%c("lm","glm"))>0) {
     imp2 <- drop1(caret_fit$finalModel)
-    dev <- imp2$Deviance
+    dev <- imp2$`Sum of Sq`
+    if(is.null(dev)) dev <- imp2$Deviance
     names(dev) <- rownames(imp2)
     imp <- dev[setdiff(names(dev),"<none>")]
     if(ordered) impS <- sort(imp,decreasing=T) else impS <- imp
