@@ -32,5 +32,5 @@ New general-purpose functions:
 - `vifCalc`: computation of variance inflation factors, conceived to check collinearity among the explanatory variables
 - `addTerms`: addition of polynomial and/or logarithmic terms to a formula
 - `stepCV`: backward selection of explanatory variables through cross-validation
-- `stepAIC_train`: first, stepwise selection of explanatory variables is performed through information criteria, then cross-validation is run to compute performance metrics (faster than `stepCV`)
+- `stepAIC_train`: stepwise selection of explanatory variables is performed through information criteria, then cross-validation is run to compute performance metrics (faster than `stepCV`)
 - `enetCoef`: coefficients at best tuning of hyperparameters for an object of class `glmnet`
