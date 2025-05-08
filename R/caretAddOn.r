@@ -229,13 +229,12 @@ addTerms <- function(formula, max.deg=1, add.log=FALSE, data) {
   }
 
 # stepAIC + cross-validation
-stepAIC_train <- function(formula, data, method, family, max.deg=1, add.log=FALSE, k=k, direction="both", trace=FALSE, ...) {
-  #
+stepAIC_train <- function(formula, data, method, family, max.deg=1, add.log=FALSE, k=2, direction="both", trace=FALSE, ...) {
   form <- addTerms(formula, data=data, max.deg=max.deg, add.log=add.log)
   environment(form) <- new.env()
-  if(deparse(substitute(method))[1]=="lm") {
+  if(method[1]=="lm") {
     mfull <- lm(form, data=data)
-    } else if(deparse(substitute(method))[1]=="glm") {
+    } else if(method[1]=="glm") {
     mfull <- glm(form, data=data, family=family)
     } else if(deparse(substitute(method))[1]=="loglm") {
     auxform <- as.character(form)
@@ -245,10 +244,17 @@ stepAIC_train <- function(formula, data, method, family, max.deg=1, add.log=FALS
     stop("Not implemented for method '",method,"'")
     }
   mstep <- MASS::stepAIC(mfull, direction=direction, k=k, trace=trace)
-  caret::train(mstep$call$formula, data=data, method=method, ...)
+  if(method[1]%in%c("lm","glm")) {
+    caret::train(mstep$call$formula, data=data, method=method, ...)
+    } else {
+    auxform <- as.character(form)
+    auxform_sw <- as.character(mstep$call$formula)
+    formsw <- formula(paste0(auxform[2],"~",auxform_sw[3]))
+    caret::train(formsw, data=data, method=method, ...)
+    }
   }
 
-# backward stepwise selection via cross-validation
+# backward selection through cross-validation
 stepCV <- function(formula, data, method, trControl, max.deg=1, add.log=FALSE, maximize=FALSE, quiet=FALSE, ...) {
   if(!is.logical(maximize)) maximize <- F else maximize <- maximize[1]
   if(!is.logical(quiet)) quiet <- F else quiet <- quiet[1]
