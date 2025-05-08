@@ -1,6 +1,7 @@
 export(loglm, svm_linear, svm_radial,
        customSummaryClass, customSummaryReg,
-       bestTune, addTerms, importanceCalc, vifCalc, stepCV, enetCoef,
+       stepCV, stepAIC_train,
+       bestTune, addTerms, importanceCalc, vifCalc, enetCoef,
        multiPairPlot, corPlot, trainPlot, importancePlot, rocPlot, densPlot, predPlot)
 
 S3method(fitted, train)
@@ -8,6 +9,7 @@ S3method(fitted, train)
 importFrom("graphics", "abline", "axis", "box", "grid", "points", "lines", "text", "boxplot", "barplot", "segments", "legend")
 importFrom("stats", "model.matrix", "sd", "cor", "na.omit", "predict", "terms", "update", "var", "formula", "lm", "glm", "drop1", "quantile", "fitted", "density")
 importFrom("caret", "train")
+importFrom("MASS", "stepAIC")
 importFrom("ggplot2", "ggplot")
 importFrom("cowplot", "plot_grid")
 importFrom("randomForest", "importance")
