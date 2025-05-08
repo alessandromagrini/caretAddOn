@@ -1,7 +1,7 @@
 # caretAddOn
 __Additional functionalities for the R package 'caret'__
 
-This package contains additional functionalities for the `caret` package, including new models, new summaries, graphical tools, general purpose functions, and datasets.
+This package contains additional functionalities for the `caret` package, including new models, new summaries, graphical tools, general-purpose functions, and datasets.
 Reference for the `caret` package:
 
 M. Kuhn (2022). caret: Classification and Regression Training. R package version 6.0-92. CRAN page: <a href="https://CRAN.R-project.org/package=caret">https://CRAN.R-project.org/package=caret</a>.
@@ -13,15 +13,15 @@ New models:
 - `svm_radial`: support vector machine/regression with radial kernel
 
 New summaries:
-- `customSummaryClass`: summary for classification tasks, including AUC and optimized specificity/sensitivity in case of class unbalance
-- `customSummaryReg`: summary for regression taks, including RMSE, MAE, MAPE, and R-squared
+- `customSummaryClass`: summary for classification tasks, including AUC and optimized specificity/sensitivity in case of class imbalance
+- `customSummaryReg`: summary for regression tasks, including RMSE, MAE, MAPE, and R-squared
 
 New graphics:
 - `multiPairPlot`: bivariate graphics displaying the relationship between one response variable and several explanatory variables
 - `corPlot`: correlogram, conceived to check collinearity among the explanatory variables
 - `trainPlot`: graphic displaying any one metric as a function of any one hyperparameter
 - `importancePlot`: graphic displaying variable importance metrics computed through the function `importanceCalc` (see below)
-- `rocPlot`: roc curve (only for binary classification)
+- `rocPlot`: ROC curve (only for binary classification)
 - `densPlot`: graphic displaying kernel density estimations for class probabilities (only for binary classification), conceived to assess the discriminative power
 - `predPlot`: scatterplot of observed values versus predicted values (only for regression tasks)
 
@@ -31,5 +31,6 @@ New general-purpose functions:
 - `importanceCalc`: computation of variable importance metrics. For models of class `lm` or `glm`, the proportion of explained deviance is used in place of the absolute t-statistic.
 - `vifCalc`: computation of variance inflation factors, conceived to check collinearity among the explanatory variables
 - `addTerms`: addition of polynomial and/or logarithmic terms to a formula
-- `stepCV`: stepwise pruning of explanatory variables through cross-validation
+- `stepCV`: stepwise selection of explanatory variables through cross-validation
+- `stepAIC_train`: stepwise selection of explanatory variables through information criteria, then cross-validation to compute performance metrics
 - `enetCoef`: coefficients at best tuning of hyperparameters for an object of class `glmnet`
