@@ -9,6 +9,7 @@ Github page: <a href="https://github.com/topepo/caret">https://github.com/topepo
 
 New models:
 - `loglm`: linear regression on log transformed response variable, with prediction made through either the conditional expected value (`bias.adj=TRUE`) or the conditional median (`bias.adj=FALSE`)
+- `rf_oob`: random forest with out-of-bag tuning
 - `svm_linear`: support vector machine/regression with linear kernel
 - `svm_radial`: support vector machine/regression with radial kernel
 
