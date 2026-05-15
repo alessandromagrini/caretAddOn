@@ -37,6 +37,80 @@ svm_linear$varImp <- function(object, ...) {
   out
   }
 
+# random forest with out-of-bag tuning
+rf_oob <- list(
+  label = "Random forest with out-of-bag tuning",
+  library = "randomForest",
+  type = c("Classification", "Regression"),
+  parameters = data.frame(
+    parameter = "dummy",
+    class = "numeric",
+    label = "dummy"
+    ),
+  grid = function(x, y, len = NULL, search = "grid") {
+    data.frame(dummy = 1)
+    },
+  fit = function(x, y, wts, param, lev, last, classProbs, ...) {
+    dots <- list(...)
+    if (is.null(dots$do.trace)) dots$do.trace <- FALSE
+    tuneRFArgs <- dots$tuneRFArgs
+    if (is.null(tuneRFArgs)) tuneRFArgs <- list()
+    dots$tuneRFArgs <- NULL
+    p <- ncol(x)
+    if (is.null(tuneRFArgs$mtryStart)) {
+      tuneRFArgs$mtryStart <-
+        if (is.factor(y)) max(1, floor(sqrt(p)))
+      else max(1, floor(p / 3))
+      }
+    if (is.null(tuneRFArgs$ntreeTry)) {
+      if (!is.null(dots$ntree)) {
+        tuneRFArgs$ntreeTry <- dots$ntree
+        } else {
+        tuneRFArgs$ntreeTry <- 50
+        }
+      }
+    if(is.null(tuneRFArgs$stepFactor)) tuneRFArgs$stepFactor <- 1.5
+    if(is.null(tuneRFArgs$improve)) tuneRFArgs$improve <- 0.01
+    if(is.null(tuneRFArgs$trace)) tuneRFArgs$trace <- FALSE
+    if(is.null(tuneRFArgs$plot)) tuneRFArgs$plot <- FALSE
+    tuneRFArgs$doBest <- FALSE
+    rf_args_for_tune <- dots
+    rf_args_for_tune$ntree <- NULL
+    rf_args_for_tune$mtry <- NULL
+    rf_args_for_tune$do.trace <- NULL
+    tr <- local({
+      out <- NULL
+      capture.output({
+        out <- do.call(
+          randomForest::tuneRF,
+          c(list(x = x, y = y), tuneRFArgs, rf_args_for_tune)
+          )
+        })
+      out
+      })
+    best_mtry <- tr[which.min(tr[, 2]), "mtry"]
+    fit <- do.call(
+      randomForest::randomForest,
+      c(list(x = x, y = y, mtry = best_mtry), dots)
+      )
+    fit$tuneRF <- tr
+    fit$best_mtry_oob <- best_mtry
+    fit$tuneRFArgs <- tuneRFArgs
+    fit
+    },
+  predict = function(modelFit, newdata, submodels = NULL) {
+    predict(modelFit, newdata)
+    },
+  prob = function(modelFit, newdata, submodels = NULL) {
+    predict(modelFit, newdata, type = "prob")
+    },
+  varImp = function(object, ...) {
+    randomForest::importance(object)
+    },
+  levels = function(x) {x$classes},
+  sort = function(x) {x}
+  )
+
 # svm radial model
 svm_radial <- list(
   library = "e1071",
@@ -95,32 +169,57 @@ svm_radial <- list(
 ###  NEW SUMMARIES  ###
 
 # summary for classification tasks
+# summary for classification tasks
 customSummaryClass <- function(data, lev = NULL, model = NULL) {
-  if(length(lev)==2) {
-    rocObject <- try(pROC::roc(data$obs, data[, lev[2]], direction = "<", quiet = TRUE), silent = TRUE)
-    #if(inherits(rocObject, "try-error")) {
-    #  rocAUC <- NA
-    #  } else {
-    #  rocAUC <- rocObject$auc
-    #  }
-    bayes <- pROC::coords(rocObject, x=0.5, ret=c("spec","sens"), transpose=T)
-    youd <- pROC::coords(rocObject, x="best", ret=c("thresh","spec","sens"), transpose=T)
-    if(is.matrix(youd)) {
-      d <- apply(youd,2,function(x){abs(x[2]-x[3])})
-      youd <- youd[,which.min(d)]
+  if (length(lev) == 2) {
+    rocObject <- try(
+      pROC::roc(data$obs, data[, lev[2]], direction = "<", quiet = TRUE),
+      silent = TRUE
+      )
+    if (inherits(rocObject, "try-error")) {
+      out <- c(
+        Accuracy = NA, Spec = NA, Sens = NA,
+        cut_youden = NA, Spec_youden = NA, Sens_youden = NA
+        )
+      return(out)
       }
-    if(youd[1]==Inf) youd[1] <- 1
-    if(youd[1]==-Inf) youd[1] <- 0
-    out <- c(rocObject$auc, unlist(bayes), unlist(youd))
-    names(out) <- c("Accuracy","Spec","Sens", "cut_youden", "Spec_youden", "Sens_youden")
+    bayes <- pROC::coords(
+      rocObject,
+      x = 0.5,
+      ret = c("specificity", "sensitivity")
+      )
+    youd <- pROC::coords(
+      rocObject,
+      x = "best",
+      best.method = "youden",
+      ret = c("threshold", "specificity", "sensitivity")
+      )
+    if (nrow(youd) > 1) {
+      d <- abs(youd$specificity - youd$sensitivity)
+      youd <- youd[which.min(d), , drop = FALSE]
+      }
+    if (is.infinite(youd$threshold) && youd$threshold > 0)
+      youd$threshold <- 1
+    if (is.infinite(youd$threshold) && youd$threshold < 0)
+      youd$threshold <- 0
+    out <- c(
+      Accuracy = as.numeric(rocObject$auc),
+      Spec = bayes$specificity,
+      Sens = bayes$sensitivity,
+      cut_youden = youd$threshold,
+      Spec_youden = youd$specificity,
+      Sens_youden = youd$sensitivity
+      )
     out
     } else {
-    cmat <- table(data$obs,data$pred)
-    acc0 <- sum(diag(cmat))/sum(cmat)
+    cmat <- table(data$obs, data$pred)
+    acc0 <- sum(diag(cmat)) / sum(cmat)
     acc <- c()
-    for(i in 1:nrow(cmat)) acc[i] <- cmat[i,i]/sum(cmat[i,])
+    for (i in 1:nrow(cmat)) {
+      acc[i] <- cmat[i, i] / sum(cmat[i, ])
+      }
     names(acc) <- rownames(cmat)
-    c(Accuracy=acc0, acc)
+    c(Accuracy = acc0, acc)
     }
   }
 
@@ -309,7 +408,7 @@ importanceCalc <- function(caret_fit, ordered=FALSE) {
   if(!is.logical(ordered)) ordered <- T else ordered <- ordered[1]
   imp0 <- tryCatch(caret::varImp(caret_fit, scale=FALSE)$importance, error=function(e){NULL})
   if(sum(class(caret_fit$finalModel)%in%c("lm","glm"))>0) {
-    imp2 <- drop1(caret_fit$finalModel)
+    imp2 <- suppressWarnings(drop1(caret_fit$finalModel))
     dev <- imp2$`Sum of Sq`
     if(is.null(dev)) dev <- imp2$Deviance
     names(dev) <- rownames(imp2)

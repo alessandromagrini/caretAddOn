@@ -1,4 +1,4 @@
-export(loglm, svm_linear, svm_radial,
+export(loglm, rf_oob, svm_linear, svm_radial,
        customSummaryClass, customSummaryReg,
        stepCV, stepAIC_train,
        bestTune, addTerms, importanceCalc, vifCalc, enetCoef,
