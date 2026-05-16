@@ -2,6 +2,7 @@
 
 # log-linear regression model
 loglm <- caret::getModelInfo("lm", regex = FALSE)[[1]]
+loglm$label <- "Log-linear regression"
 loglm$fit <- function(x, y, wts, param, lev, last, classProbs, bias.adj=TRUE, ...) {
   dat <- if(is.data.frame(x)) x else as.data.frame(x, stringsAsFactors=TRUE)
   dat$.outcome <- log(y)
@@ -29,6 +30,7 @@ loglm$predict <- function(modelFit, newdata, submodels = NULL) {
 
 # svm linear model
 svm_linear <- caret::getModelInfo("svmLinear2", regex = FALSE)[[1]]
+svm_linear$label <- "Linear support vector machine"
 svm_linear$varImp <- function(object, ...) {
   varImps <- abs(t(t(object$coefs)%*%object$SV))
   out <- data.frame(varImps)
@@ -113,6 +115,7 @@ rf_oob <- list(
 
 # svm radial model
 svm_radial <- list(
+  label = "Support vector machine with radial kernel",
   library = "e1071",
   type = c("Regression", "Classification"),
   parameters = data.frame(parameter = c("cost", "gamma"),
@@ -165,10 +168,160 @@ svm_radial <- list(
   sort = function(x) x[order(x$cost, x$gamma),]
   )
 
+# regression with penalized cubic splines
+gam_mgcv <- list(
+  label = "Regression with penalized cubic splines",
+  library = "mgcv",
+  type = c("Regression", "Classification"),
+  parameters = data.frame(
+    parameter = "max_k",
+    class = "numeric",
+    label = "Maximum basis dimension"
+    ),
+  grid = function(x, y, len = NULL, search = "grid") {
+    data.frame(max_k = 10)
+    },
+  fit = function(x, y, wts, param, lev, last, classProbs, ...) {
+    dots <- list(...)
+    data <- as.data.frame(x)
+    bs_type <- ifelse(is.null(dots$bs), "cs", dots$bs)
+    if (!is.null(dots$bs)) {
+      dots$bs <- NULL
+      }
+    rhs <- vapply(names(data), function(v) {
+      z <- data[[v]]
+      if (is.numeric(z)) {
+        n_unique <- length(unique(z[!is.na(z)]))
+        if (n_unique >= 5) {
+          k_var <- min(param$max_k, n_unique - 1)
+          paste0("s(", v,", bs = '", bs_type,"', k = ", k_var,")")
+          } else {
+          v
+          }
+        } else {
+        v
+        }
+      }, character(1))
+    form <- as.formula(
+      paste(".outcome ~", paste(rhs, collapse = " + "))
+      )
+    if (is.factor(y)) {
+      if (length(levels(y)) != 2) {
+        stop("Implemented for binary classification tasks only")
+        }
+      data$.outcome <- as.numeric(y == lev[2])
+      default_family <- binomial()
+      } else {
+      data$.outcome <- y
+      default_family <- gaussian()
+      }
+    if (is.null(dots$family)) {
+      fam <- default_family
+      } else {
+      fam <- dots$family
+      dots$family <- NULL
+      }
+    if (is.null(dots$method)) {
+      dots$method <- "REML"
+      }
+    fit <- do.call(
+      mgcv::gam,
+      c(list(
+        formula = form, data = data, weights = wts, family = fam
+        ), dots)
+      )
+    fit$obsLevels <- lev
+    fit$max_k <- param$max_k
+    fit$gam_formula <- form
+    fit$bs_type <- bs_type
+    fit
+    },
+  predict = function(modelFit, newdata, submodels = NULL) {
+    p <- predict(
+      modelFit,
+      newdata = as.data.frame(newdata),
+      type = "response"
+      )
+    if (modelFit$family$family == "binomial") {
+      out <- ifelse(
+        p >= 0.5,
+        modelFit$obsLevels[2],
+        modelFit$obsLevels[1]
+        )
+      factor(out, levels = modelFit$obsLevels)
+      } else {
+      as.numeric(p)
+      }
+    },
+  prob = function(modelFit, newdata, submodels = NULL) {
+    p <- predict(
+      modelFit,
+      newdata = as.data.frame(newdata),
+      type = "response"
+      )
+    out <- data.frame(1-p, p)
+    colnames(out) <- modelFit$obsLevels
+    out
+    },
+  levels = function(x) {
+    x$obsLevels
+    },
+  sort = function(x) {
+    x[order(x$max_k), ]
+    },
+  varImp = function(object, ...) {
+    s <- summary(object)
+    out <- data.frame(
+      Overall = numeric(0)
+      )
+    if (!is.null(s$s.table) && nrow(s$s.table) > 0) {
+      st <- as.data.frame(s$s.table)
+      smooth_names <- rownames(st)
+      smooth_vars <- gsub("^s\\((.*)\\)$", "\\1", smooth_names)
+      stat_col <- intersect(
+        c("F", "Chi.sq", "Chi.sq."),
+        colnames(st)
+        )[1]
+      if (!is.na(stat_col)) {
+        vals <- st[["edf"]] * st[[stat_col]]
+        vals[is.na(vals)] <- 0
+        out <- rbind(
+          out,
+          data.frame(
+            Overall = vals,
+            row.names = smooth_vars
+            )
+          )
+        }
+      }
+    if (!is.null(s$p.table) && nrow(s$p.table) > 0) {
+      pt <- as.data.frame(s$p.table)
+      param_names <- rownames(pt)
+      param_names <- param_names[param_names != "(Intercept)"]
+      stat_col <- intersect(
+        c("t value", "z value"),
+        colnames(pt)
+        )[1]
+      if (length(param_names) > 0 && !is.na(stat_col)) {
+        vals <- abs(pt[param_names, stat_col])
+        vals[is.na(vals)] <- 0
+        out <- rbind(
+          out,
+          data.frame(
+            Overall = vals,
+            row.names = param_names
+            )
+          )
+        }
+      }
+    out <- out[order(out$Overall, decreasing = TRUE), , drop = FALSE]
+    out
+    }
+  )
+
 
 ###  NEW SUMMARIES  ###
 
-# summary for classification tasks
 # summary for classification tasks
 customSummaryClass <- function(data, lev = NULL, model = NULL) {
   if (length(lev) == 2) {
@@ -407,7 +560,7 @@ trainPlot <- function(caret_fit, par=NULL, metric=NULL, ylab=NULL, xlab=NULL, vc
 importanceCalc <- function(caret_fit, ordered=FALSE) {
   if(!is.logical(ordered)) ordered <- T else ordered <- ordered[1]
   imp0 <- tryCatch(caret::varImp(caret_fit, scale=FALSE)$importance, error=function(e){NULL})
-  if(sum(class(caret_fit$finalModel)%in%c("lm","glm"))>0) {
+  if(sum(class(caret_fit$finalModel)[1]%in%c("lm","glm"))>0) {
     imp2 <- suppressWarnings(drop1(caret_fit$finalModel))
     dev <- imp2$`Sum of Sq`
     if(is.null(dev)) dev <- imp2$Deviance

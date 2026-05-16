@@ -1,4 +1,4 @@
-export(loglm, rf_oob, svm_linear, svm_radial,
+export(loglm, gam_mgcv, rf_oob, svm_linear, svm_radial,
        customSummaryClass, customSummaryReg,
        stepCV, stepAIC_train,
        bestTune, addTerms, importanceCalc, vifCalc, enetCoef,
@@ -14,6 +14,7 @@ importFrom("ggplot2", "ggplot")
 importFrom("cowplot", "plot_grid")
 importFrom("randomForest", "importance")
 importFrom("pROC","roc")
+importFrom("mgcv","gam")
 importFrom("e1071","svm")
 importFrom("grDevices", "boxplot.stats")
 importFrom("corrgram", "corrgram", "panel.cor")
