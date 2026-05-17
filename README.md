@@ -8,7 +8,7 @@ M. Kuhn (2022). caret: Classification and Regression Training. R package version
 Github page: <a href="https://github.com/topepo/caret">https://github.com/topepo/caret</a>
 
 New models:
-- `loglm`: linear regression on log transformed response variable, with prediction made through either the conditional expected value (`bias.adj=TRUE`) or the conditional median (`bias.adj=FALSE`)
+- `glm_extended`: linear regression, log-linear regression or generalized linear model that can include polynomial and/or logaritmic terms; stepwise variable selection is available before cross-validation
 - `gam_mgcv`: regression with penalized splines (`mgcv` package)
 - `rf_oob`: random forest with out-of-bag tuning
 - `svm_linear`: support vector machine/regression with linear kernel
@@ -30,9 +30,6 @@ New graphics:
 New general-purpose functions:
 - `bestTune`: best tuning of hyperparameters
 - `fitted` (S3 method for class `train`): cross-validation prediction for each unit
-- `importanceCalc`: computation of variable importance metrics. For models of class `lm` or `glm`, the proportion of explained deviance is used in place of the absolute t-statistic.
 - `vifCalc`: computation of variance inflation factors, conceived to check collinearity among the explanatory variables
-- `addTerms`: addition of polynomial and/or logarithmic terms to a formula
-- `stepCV`: backward selection of explanatory variables through cross-validation
-- `stepAIC_train`: stepwise selection of explanatory variables is performed through information criteria, then cross-validation is run to compute performance metrics (faster than `stepCV`)
+-
 - `enetCoef`: coefficients at best tuning of hyperparameters for an object of class `glmnet`
