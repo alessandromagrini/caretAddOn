@@ -247,80 +247,6 @@ glm_extended <- list(
   sort = function(x) x
   )
 
-# random forest with out-of-bag tuning
-rf_oob <- list(
-  label = "Random forest with out-of-bag tuning",
-  library = "randomForest",
-  type = c("Classification", "Regression"),
-  parameters = data.frame(
-    parameter = "dummy",
-    class = "numeric",
-    label = "dummy"
-    ),
-  grid = function(x, y, len = NULL, search = "grid") {
-    data.frame(dummy = 1)
-    },
-  fit = function(x, y, wts, param, lev, last, classProbs, ...) {
-    dots <- list(...)
-    if (is.null(dots$do.trace)) dots$do.trace <- FALSE
-    tuneRFArgs <- dots$tuneRFArgs
-    if (is.null(tuneRFArgs)) tuneRFArgs <- list()
-    dots$tuneRFArgs <- NULL
-    p <- ncol(x)
-    if (is.null(tuneRFArgs$mtryStart)) {
-      tuneRFArgs$mtryStart <-
-        if (is.factor(y)) max(1, floor(sqrt(p)))
-      else max(1, floor(p / 3))
-      }
-    if (is.null(tuneRFArgs$ntreeTry)) {
-      if (!is.null(dots$ntree)) {
-        tuneRFArgs$ntreeTry <- dots$ntree
-        } else {
-        tuneRFArgs$ntreeTry <- 50
-        }
-      }
-    if(is.null(tuneRFArgs$stepFactor)) tuneRFArgs$stepFactor <- 1.5
-    if(is.null(tuneRFArgs$improve)) tuneRFArgs$improve <- 0.01
-    if(is.null(tuneRFArgs$trace)) tuneRFArgs$trace <- FALSE
-    if(is.null(tuneRFArgs$plot)) tuneRFArgs$plot <- FALSE
-    tuneRFArgs$doBest <- FALSE
-    rf_args_for_tune <- dots
-    rf_args_for_tune$ntree <- NULL
-    rf_args_for_tune$mtry <- NULL
-    rf_args_for_tune$do.trace <- NULL
-    tr <- local({
-      out <- NULL
-      capture.output({
-        out <- do.call(
-          randomForest::tuneRF,
-          c(list(x = x, y = y), tuneRFArgs, rf_args_for_tune)
-          )
-        })
-      out
-      })
-    best_mtry <- tr[which.min(tr[, 2]), "mtry"]
-    fit <- do.call(
-      randomForest::randomForest,
-      c(list(x = x, y = y, mtry = best_mtry), dots)
-      )
-    fit$tuneRF <- tr
-    fit$best_mtry_oob <- best_mtry
-    fit$tuneRFArgs <- tuneRFArgs
-    fit
-    },
-  predict = function(modelFit, newdata, submodels = NULL) {
-    predict(modelFit, newdata)
-    },
-  prob = function(modelFit, newdata, submodels = NULL) {
-    predict(modelFit, newdata, type = "prob")
-    },
-  varImp = function(object, ...) {
-    randomForest::importance(object)
-    },
-  levels = function(x) {x$classes},
-  sort = function(x) {x}
-  )
-
 # svm linear model
 svm_linear <- caret::getModelInfo("svmLinear2", regex = FALSE)[[1]]
 svm_linear$label <- "Linear support vector machine"
@@ -672,14 +598,14 @@ enetCoef <- function(caret_fit) {
 
 ###  NEW GRAPHICS  ###
 
-# metric versus parameter plot
+# plot of grid search
 trainPlot <- function(caret_fit, par=NULL, metric=NULL, ylab=NULL, xlab=NULL, vcol="red", ...) {
   if(is.null(metric)) metric <- caret_fit$metric
   if(is.null(par)) par <- colnames(caret_fit$bestTune)[1]
   if(is.null(ylab)) ylab <- metric
   if(is.null(xlab)) xlab <- par
   plot(caret_fit$results[,par], caret_fit$results[,metric], ylab=ylab, xlab=xlab, type="l", ...)
-  abline(v=caret_fit$bestTune, col=vcol)
+  abline(v=caret_fit$bestTune[1,par], col=vcol)
   }
 
 # plot of variable importance

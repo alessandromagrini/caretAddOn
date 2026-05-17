@@ -6,7 +6,7 @@ Date: 2026-05-18
 Authors@R: person(given="Alessandro", family="Magrini", role=c("aut","cre"), email="alessandro.magrini@unifi.it")
 Maintainer: Alessandro Magrini <alessandro.magrini@unifi.it>
 Description: Additional functionalities for the 'caret' package, including new models, new summaries, graphical tools, general-purpose functions, and datasets.
-Depends: R (>= 3.5.0), caret, e1071, mgcv, pROC, randomForest 
+Depends: R (>= 3.5.0), caret, e1071, mgcv, pROC
 Imports: graphics, stats, corrgram, cowplot, ggplot2, MASS
 License: GPL-2
 NeedsCompilation: no

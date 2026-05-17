@@ -1,4 +1,4 @@
-export(glm_extended, gam_mgcv, rf_oob, svm_linear, svm_radial,
+export(glm_extended, gam_mgcv, svm_linear, svm_radial,
        customSummaryClass, customSummaryReg,
        bestTune, vifCalc, enetCoef,
        multiPairPlot, corPlot, trainPlot, importancePlot, rocPlot, densPlot, predPlot)
@@ -12,7 +12,6 @@ importFrom("caret", "varImp")
 importFrom("MASS", "stepAIC")
 importFrom("ggplot2", "ggplot")
 importFrom("cowplot", "plot_grid")
-importFrom("randomForest", "importance")
 importFrom("pROC","roc")
 importFrom("mgcv","gam")
 importFrom("e1071","svm")
