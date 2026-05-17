@@ -1,43 +1,251 @@
 ###  NEW MODELS  ###
 
-# log-linear regression model
-loglm <- caret::getModelInfo("lm", regex = FALSE)[[1]]
-loglm$label <- "Log-linear regression"
-loglm$fit <- function(x, y, wts, param, lev, last, classProbs, bias.adj=TRUE, ...) {
-  dat <- if(is.data.frame(x)) x else as.data.frame(x, stringsAsFactors=TRUE)
-  dat$.outcome <- log(y)
-  if(!is.null(wts)) {
-    if(param$intercept) {
-      out <- lm(.outcome ~ ., data = dat, weights = wts, ...)
-      } else {
-      out <- lm(.outcome ~ 0 + ., data = dat, weights = wts, ...)
+# extended generalized linear model
+glm_extended <- list(
+  label = "Extended generalized linear model",
+  library = "MASS",
+  type = c("Regression", "Classification"),
+  parameters = data.frame(
+    parameter = "dummy",
+    class = "numeric",
+    label = "dummy"
+    ),
+  grid = function(x, y, len = NULL, search = "grid") {
+    data.frame(dummy = 1)
+    },
+  fit = function(x, y, wts, param, lev, last, classProbs, ...) {
+    dots <- list(...)
+    max.deg <- if (!is.null(dots$max.deg)) as.integer(dots$max.deg) else 1
+    log.terms <- if (!is.null(dots$log.terms)) isTRUE(dots$log.terms) else FALSE
+    log.response <- if (!is.null(dots$log.response)) isTRUE(dots$log.response) else FALSE
+    bias.adj <- if (!is.null(dots$bias.adj)) isTRUE(dots$bias.adj) else TRUE
+    use_stepAIC <- if (!is.null(dots$stepAIC)) isTRUE(dots$stepAIC) else FALSE
+    use_glm <- if (!is.null(dots$use.glm)) isTRUE(dots$use.glm) else FALSE
+    fixed_names <- c(
+      "max.deg", "log.terms", "log.response", "bias.adj",
+      "stepAIC", "use.glm",
+      "step.direction", "step.k", "step.trace",
+      "step.scope", "step.steps", "step.keep"
+      )
+    model_args <- dots
+    model_args[fixed_names] <- NULL
+    model_args$family <- NULL
+    data <- as.data.frame(x)
+    bt <- function(v) paste0("`", v, "`")
+    make_formula <- function(data, max.deg, log.terms) {
+      rhs <- vapply(names(data), bt, character(1))
+      for (v in names(data)) {
+        z <- data[[v]]
+        if (is.numeric(z)) {
+          n_unique <- length(unique(z[!is.na(z)]))
+          if (n_unique >= 3) {
+            if (max.deg >= 2) {
+              for (d in 2:max.deg) {
+                rhs <- c(rhs, paste0("I(", bt(v), "^", d, ")"))
+                }
+              }
+            if (log.terms && all(z > 0, na.rm = TRUE)) {
+              rhs <- c(rhs, paste0("log(", bt(v), ")"))
+              }
+            }
+          }
+        }
+      as.formula(paste(".outcome ~", paste(rhs, collapse = " + ")))
       }
-    } else {
-    if(param$intercept) {
-      out <- lm(.outcome ~ ., data = dat, ...)
-      } else {
-      out <- lm(.outcome ~ 0 + ., data = dat, ...)
+    check_family_domain <- function(y, fam, is_class) {
+      fam_name <- fam$family
+      if (is_class) {
+        if (!(fam_name %in% c("binomial", "quasibinomial"))) {
+          stop("Family ",fam_name," is invalid for classification tasks")
+          }
+        } else {
+        if (fam_name %in% c("binomial", "quasibinomial")) {
+          stop("Family ",fam_name," is invalid for regression tasks")
+          }
+        if (fam_name %in% c("Gamma", "inverse.gaussian")) {
+          if (any(y <= 0, na.rm = TRUE)) {
+            stop("Family ", fam_name, " requires y > 0.")
+            }
+          }
+        if (fam_name %in% c("poisson", "quasipoisson")) {
+          if (any(y < 0, na.rm = TRUE)) {
+            stop("Family ", fam_name, " requires y >= 0.")
+            }
+          if (any(abs(y - round(y)) > .Machine$double.eps^0.5, na.rm = TRUE)) {
+            warning("Family ", fam_name," is used but y has non-integer values")
+            }
+          }
+        }
+      invisible(TRUE)
       }
-    }
-  out$bias.adj <- bias.adj
-  out
-  }
-loglm$predict <- function(modelFit, newdata, submodels = NULL) {
-  if(!is.data.frame(newdata)) newdata <- as.data.frame(newdata, stringsAsFactors = TRUE)
-  if(modelFit$bias.adj) adj <- 0.5*summary(modelFit)$sigma^2 else adj <- 0
-  exp(predict(modelFit, newdata)+adj)
-  }
-
-# svm linear model
-svm_linear <- caret::getModelInfo("svmLinear2", regex = FALSE)[[1]]
-svm_linear$label <- "Linear support vector machine"
-svm_linear$varImp <- function(object, ...) {
-  varImps <- abs(t(t(object$coefs)%*%object$SV))
-  out <- data.frame(varImps)
-  colnames(out) <- "Overall"
-  if(!is.null(names(varImps))) rownames(out) <- names(varImps)
-  out
-  }
+    form <- make_formula(
+      data = data,
+      max.deg = max.deg,
+      log.terms = log.terms
+      )
+    is_class <- is.factor(y)
+    if (is_class) {
+      if (length(levels(y)) != 2) {
+        stop("Implemented for binary classification tasks only")
+        }
+      if (log.response) log.response <- FALSE
+      if (bias.adj) bias.adj <- FALSE
+      fam <- if (!is.null(dots$family)) dots$family else stats::binomial()
+      check_family_domain(
+        y = y,
+        fam = fam,
+        is_class = TRUE
+        )
+      data$.outcome <- y
+      fit <- do.call(
+        stats::glm,
+        c(
+          list(
+            formula = form,
+            data = data,
+            weights = wts,
+            family = fam
+            ),
+          model_args
+          )
+        )
+      model_engine <- "glm"
+      } else {
+      fam <- dots$family
+      if (!is.null(fam)) use_glm <- TRUE
+      if (isTRUE(use_glm)) {
+        if (log.response) log.response <- FALSE
+        if (bias.adj) bias.adj <- FALSE
+        if (is.null(fam)) fam <- stats::gaussian()
+        check_family_domain(
+          y = y,
+          fam = fam,
+          is_class = FALSE
+          )
+        data$.outcome <- y
+        fit <- do.call(
+          stats::glm,
+          c(
+            list(
+              formula = form,
+              data = data,
+              weights = wts,
+              family = fam
+              ),
+            model_args
+            )
+          )
+        model_engine <- "glm"
+        } else {
+        if (log.response) {
+          if (any(y <= 0, na.rm = TRUE)) {
+            stop("log.response = TRUE requires y > 0.")
+            }
+          data$.outcome <- log(y)
+          } else {
+          data$.outcome <- y
+          bias.adj <- FALSE
+          }
+        fit <- do.call(
+          stats::lm,
+          c(
+            list(
+              formula = form,
+              data = data,
+              weights = wts
+              ),
+            model_args
+            )
+          )
+        model_engine <- "lm"
+        }
+      }
+    if (use_stepAIC) {
+      step_args <- list(
+        direction = if (!is.null(dots$step.direction)) dots$step.direction else "both",
+        trace = if (!is.null(dots$step.trace)) dots$step.trace else FALSE
+        )
+      if (!is.null(dots$step.k)) step_args$k <- dots$step.k
+      if (!is.null(dots$step.scope)) step_args$scope <- dots$step.scope
+      if (!is.null(dots$step.steps)) step_args$steps <- dots$step.steps
+      if (!is.null(dots$step.keep)) step_args$keep <- dots$step.keep
+      fit <- do.call(
+        MASS::stepAIC,
+        c(list(object = fit), step_args)
+        )
+      }
+    fit$call <- if (model_engine == "glm") {
+      quote(glm(formula = extended_formula))
+      } else {
+      quote(lm(formula = extended_formula))
+      }
+    fit$max.deg <- max.deg
+    fit$log.terms <- log.terms
+    fit$log.response <- log.response
+    fit$bias.adj <- bias.adj
+    fit$stepAIC <- use_stepAIC
+    fit$use.glm <- use_glm
+    fit$expanded_formula <- form
+    fit$obsLevels <- lev
+    fit$is_class <- is_class
+    fit$model_engine <- model_engine
+    fit
+    },
+  predict = function(modelFit, newdata, submodels = NULL) {
+    p <- predict(
+      modelFit,
+      newdata = as.data.frame(newdata),
+      type = "response"
+      )
+    if (isTRUE(modelFit$is_class)) {
+      out <- ifelse(
+        p >= 0.5,
+        modelFit$obsLevels[2],
+        modelFit$obsLevels[1]
+        )
+      factor(out, levels = modelFit$obsLevels)
+      } else {
+      if (isTRUE(modelFit$log.response)) {
+        if (isTRUE(modelFit$bias.adj)) {
+          sigma2 <- summary(modelFit)$sigma^2
+          p <- exp(p + sigma2 / 2)
+          } else {
+          p <- exp(p)
+          }
+        }
+      as.numeric(p)
+      }
+    },
+  prob = function(modelFit, newdata, submodels = NULL) {
+    p <- predict(
+      modelFit,
+      newdata = as.data.frame(newdata),
+      type = "response"
+      )
+    out <- data.frame(1 - p, p)
+    colnames(out) <- modelFit$obsLevels
+    out
+    },
+  levels = function(x) {
+    x$obsLevels
+    },
+  varImp = function (object, ...) {
+    # proportional increase in deviance when each term is dropped
+    imp <- suppressWarnings(drop1(object, test = "Chisq"))
+    dev <- imp$`Sum of Sq`
+    if (is.null(dev)) dev <- imp$Deviance
+    names(dev) <- rownames(imp)
+    dev <- dev[setdiff(names(dev), "<none>")]
+    dev <- dev[!is.na(dev)]
+    if (length(dev) == 0 || sum(dev) == 0) {
+      out <- data.frame(Overall = numeric(0))
+      } else {
+      out <- data.frame(Overall = dev / sum(dev))
+      }
+    out
+    },
+  sort = function(x) x
+  )
 
 # random forest with out-of-bag tuning
 rf_oob <- list(
@@ -112,6 +320,17 @@ rf_oob <- list(
   levels = function(x) {x$classes},
   sort = function(x) {x}
   )
+
+# svm linear model
+svm_linear <- caret::getModelInfo("svmLinear2", regex = FALSE)[[1]]
+svm_linear$label <- "Linear support vector machine"
+svm_linear$varImp <- function(object, ...) {
+  varImps <- abs(t(t(object$coefs)%*%object$SV))
+  out <- data.frame(varImps)
+  colnames(out) <- "Overall"
+  if(!is.null(names(varImps))) rownames(out) <- names(varImps)
+  out
+  }
 
 # svm radial model
 svm_radial <- list(
@@ -376,7 +595,7 @@ customSummaryClass <- function(data, lev = NULL, model = NULL) {
     }
   }
 
-# summary for regression tasks - mean metrics
+# summary for regression tasks
 customSummaryReg <- function(data, lev = NULL, model = NULL) {
   yobs <- data$obs
   ypred <- data$pred
@@ -450,99 +669,6 @@ enetCoef <- function(caret_fit) {
     s=caret_fit$bestTune$lambda))[,1]
   }
 
-# extract variables in formula (auxiliary)
-extrVar <- function(formula, data) {
-  labels(terms(formula, data=data))
-  }
-
-# add polynomial and/or logarithmic terms to a formula
-addTerms <- function(formula, max.deg=1, add.log=FALSE, data) {
-  if(!is.numeric(max.deg)) max.deg <- 1 else max.deg <- max(1,round(max.deg))
-  if(!is.logical(add.log)) add.log <- F else add.log <- add.log[1]
-  nomi <- extrVar(formula, data=data)
-  if(length(nomi)>0 & max.deg>0) {
-    xstr <- c()
-    for(i in 1:length(nomi)) {
-      xstr <- c(xstr, nomi[i])
-      if(nomi[i] %in% colnames(data)) {
-        ix <- data[,nomi[i]]
-        if(is.numeric(ix)) {
-          if(!identical(sort(unique(na.omit(ix))),c(0,1))) {
-            if(add.log & sum(ix<=0)==0) xstr <- c(xstr, paste0("log(",nomi[i],")"))
-            if(max.deg>1) xstr <- c(xstr, paste0("I(",nomi[i],"^",2:max.deg,")"))
-            }
-          }
-        }
-      }
-    formula(paste0(as.character(formula)[2],"~",paste0(xstr,collapse="+")))
-    } else {
-    formula
-    }
-  }
-
-# stepAIC + cross-validation
-stepAIC_train <- function(formula, data, method, family, max.deg=1, add.log=FALSE, k=2, direction="both", trace=FALSE, ...) {
-  form <- addTerms(formula, data=data, max.deg=max.deg, add.log=add.log)
-  environment(form) <- new.env()
-  if(method[1]=="lm") {
-    mfull <- lm(form, data=data)
-    } else if(method[1]=="glm") {
-    mfull <- glm(form, data=data, family=family)
-    } else if(deparse(substitute(method))[1]=="loglm") {
-    auxform <- as.character(form)
-    form_log <- formula(paste0("log(",auxform[2],")~",auxform[3]))
-    mfull <- lm(form_log, data=data)
-    } else {
-    stop("Not implemented for method '",method,"'")
-    }
-  mstep <- MASS::stepAIC(mfull, direction=direction, k=k, trace=trace)
-  if(method[1]%in%c("lm","glm")) {
-    caret::train(mstep$call$formula, data=data, method=method, ...)
-    } else {
-    auxform <- as.character(form)
-    auxform_sw <- as.character(mstep$call$formula)
-    formsw <- formula(paste0(auxform[2],"~",auxform_sw[3]))
-    caret::train(formsw, data=data, method=method, ...)
-    }
-  }
-
-# backward selection through cross-validation
-stepCV <- function(formula, data, method, trControl, max.deg=1, add.log=FALSE, maximize=FALSE, quiet=FALSE, ...) {
-  if(!is.logical(maximize)) maximize <- F else maximize <- maximize[1]
-  if(!is.logical(quiet)) quiet <- F else quiet <- quiet[1]
-  mseOK <- Inf
-  formOK <- addTerms(formula, max.deg=max.deg, add.log=add.log, data=data)
-  fine <- 0
-  ind <- 1
-  while(fine==0) {
-    auxmse <- c()
-    auxform <- auxmod <- list()
-    nomi <- extrVar(formOK,data=data)
-    for(i in 1:length(nomi)) {
-      if(quiet==F) cat('\r',"Step ",ind,". Evaluated ",i,"/",length(nomi)," terms",sep="")
-      auxform[[i]] <- update(formOK, formula(paste0(".~.-",nomi[i])))
-      itrain <- suppressWarnings(
-        caret::train(auxform[[i]], data=data, method=method, trControl=trControl, maximize=maximize, ...)
-        )
-      imse <- itrain$results[rownames(itrain$bestTune),itrain$perfNames[1]]
-      auxmse[i] <- ifelse(maximize,-1,1)*imse
-      auxmod[[i]] <- itrain
-      }
-    mseCurrent <- auxmse[which.min(auxmse)]
-    if(mseCurrent<mseOK) {
-      mseOK <- mseCurrent
-      formOK <- auxform[[which.min(auxmse)]]
-      modOK <- auxmod[[which.min(auxmse)]]
-      } else {
-      fine <- 1
-      }
-    ind <- ind+1
-    if(quiet==F) cat("\n")
-    }
-  if(quiet==F) cat("End with ",length(extrVar(formOK,data=data))," terms",sep="","\n")
-  modOK
-  }
-
 
 ###  NEW GRAPHICS  ###
 
@@ -556,32 +682,12 @@ trainPlot <- function(caret_fit, par=NULL, metric=NULL, ylab=NULL, xlab=NULL, vc
   abline(v=caret_fit$bestTune, col=vcol)
   }
 
-# variable importance
-importanceCalc <- function(caret_fit, ordered=FALSE) {
-  if(!is.logical(ordered)) ordered <- T else ordered <- ordered[1]
-  imp0 <- tryCatch(caret::varImp(caret_fit, scale=FALSE)$importance, error=function(e){NULL})
-  if(sum(class(caret_fit$finalModel)[1]%in%c("lm","glm"))>0) {
-    imp2 <- suppressWarnings(drop1(caret_fit$finalModel))
-    dev <- imp2$`Sum of Sq`
-    if(is.null(dev)) dev <- imp2$Deviance
-    names(dev) <- rownames(imp2)
-    imp <- dev[setdiff(names(dev),"<none>")]
-    if(ordered) impS <- sort(imp,decreasing=T) else impS <- imp
-    attr(impS,"metric") <- "proportion of deviance"
-    impS/sum(impS)
-    } else {
-    if(!is.null(imp0)) {
-      imp <- imp0[,1]
-      names(imp) <- rownames(imp0)
-      if(ordered) impS <- sort(imp,decreasing=T) else impS <- imp
-      impS/sum(impS)
-      }
-    }
-  }
-
 # plot of variable importance
-importancePlot <- function(caret_fit, ordered=TRUE, ylab="", add.grid=TRUE, line.lty=1, cex.points=0.8, cex.names=0.8, dist.names=0.5, ...) {
-  imp <- importanceCalc(caret_fit, ordered=ordered)
+importancePlot <- function(caret_fit, scale=TRUE, ordered=TRUE, ylab="", add.grid=TRUE, line.lty=1, cex.points=0.8, cex.names=0.8, dist.names=0.5, ...) {
+  auximp <- varImp(caret_fit, scale=scale)$importance
+  imp <- auximp[,1]
+  names(imp) <- rownames(auximp)
+  if(ordered) imp <- sort(imp, decreasing=T)
   if(!is.null(imp)) {
     plot(imp, type="n", xaxt="n", xlab="", ylab=ylab, ...)
     if(add.grid) grid()
