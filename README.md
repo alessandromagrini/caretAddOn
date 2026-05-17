@@ -31,5 +31,4 @@ New general-purpose functions:
 - `bestTune`: best tuning of hyperparameters
 - `fitted` (S3 method for class `train`): cross-validation prediction for each unit
 - `vifCalc`: computation of variance inflation factors, conceived to check collinearity among the explanatory variables
--
 - `enetCoef`: coefficients at best tuning of hyperparameters for an object of class `glmnet`
