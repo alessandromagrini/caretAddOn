@@ -10,7 +10,6 @@ Github page: <a href="https://github.com/topepo/caret">https://github.com/topepo
 New models:
 - `glm_extended`: linear regression, log-linear regression or generalized linear model that can include polynomial and/or logaritmic terms; stepwise variable selection through `MASS::stepAIC` is available before cross-validation
 - `gam_mgcv`: generalized additive model based on `mgcv` package
-- `rf_oob`: random forest with out-of-bag tuning
 - `svm_linear`: support vector machine/regression with linear kernel
 - `svm_radial`: support vector machine/regression with radial kernel
 
