@@ -1,12 +1,12 @@
 export(glm_extended, gam_mgcv, svm_linear, svm_radial,
        customSummaryClass, customSummaryReg,
        bestTune, vifCalc, enetCoef,
-       multiPairPlot, corPlot, trainPlot, importancePlot, rocPlot, densPlot, predPlot)
+       multiPairPlot, corPlot, trainPlot, importancePlot, gamPlot, rocPlot, densPlot, predPlot)
 
 S3method(fitted, train)
 
-importFrom("graphics", "abline", "axis", "box", "grid", "points", "lines", "text", "boxplot", "barplot", "segments", "legend")
-importFrom("stats", "model.matrix", "sd", "cor", "na.omit", "predict", "terms", "update", "var", "formula", "lm", "glm", "drop1", "quantile", "fitted", "density")
+importFrom("graphics", "abline", "axis", "box", "grid", "points", "lines", "text", "boxplot", "barplot", "segments", "polygon", "legend")
+importFrom("stats", "model.matrix", "sd", "cor", "na.omit", "predict", "terms", "formula", "as.formula", "update", "var", "lm", "glm", "drop1", "quantile", "fitted", "density", "qnorm")
 importFrom("caret", "train")
 importFrom("caret", "varImp")
 importFrom("MASS", "stepAIC")

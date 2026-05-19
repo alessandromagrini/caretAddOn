@@ -6,19 +6,19 @@ glm_extended <- list(
   library = "MASS",
   type = c("Regression", "Classification"),
   parameters = data.frame(
-    parameter = "dummy",
+    parameter = "none",
     class = "numeric",
-    label = "dummy"
+    label = "No tuning parameter"
     ),
   grid = function(x, y, len = NULL, search = "grid") {
-    data.frame(dummy = 1)
+    data.frame(none = 1)
     },
   fit = function(x, y, wts, param, lev, last, classProbs, ...) {
     dots <- list(...)
     max.deg <- if (!is.null(dots$max.deg)) as.integer(dots$max.deg) else 1
     log.terms <- if (!is.null(dots$log.terms)) isTRUE(dots$log.terms) else FALSE
     log.response <- if (!is.null(dots$log.response)) isTRUE(dots$log.response) else FALSE
-    bias.adj <- if (!is.null(dots$bias.adj)) isTRUE(dots$bias.adj) else TRUE
+    bias.adj <- if (!is.null(dots$bias.adj)) isTRUE(dots$bias.adj) else FALSE
     use_stepAIC <- if (!is.null(dots$stepAIC)) isTRUE(dots$stepAIC) else FALSE
     use_glm <- if (!is.null(dots$use.glm)) isTRUE(dots$use.glm) else FALSE
     fixed_names <- c(
@@ -179,6 +179,7 @@ glm_extended <- list(
       } else {
       quote(lm(formula = extended_formula))
       }
+    fit$call$formula <- formula(fit)
     fit$max.deg <- max.deg
     fit$log.terms <- log.terms
     fit$log.response <- log.response
@@ -523,8 +524,9 @@ customSummaryClass <- function(data, lev = NULL, model = NULL) {
 
 # summary for regression tasks
 customSummaryReg <- function(data, lev = NULL, model = NULL) {
-  yobs <- data$obs
-  ypred <- data$pred
+  ok <- is.finite(data$obs) & is.finite(data$pred)
+  yobs  <- data$obs[ok]
+  ypred <- data$pred[ok]
   mse <- mean((yobs-ypred)^2)
   mae <- mean(abs(yobs-ypred))
   rmse <- sqrt(mse)
@@ -593,6 +595,85 @@ enetCoef <- function(caret_fit) {
   if(identical(caret_fit$method,"glmnet")==F) stop("Implemented for method 'glmnet' only",call.=F)
   as.matrix(predict(caret_fit$finalModel, type="coefficients",
     s=caret_fit$bestTune$lambda))[,1]
+  }
+
+# plot of partial effects in a gam model (reference: mean for quantitative Xs, mode for qualitative Xs)
+gamPlot <- function(gam.model, x.name, data, n.grid=100, type="link", level=0.95, xlab=NULL, ylab=NULL, ylim=NULL, ...) {
+  if(inherits(gam.model, "train")) gam.model <- gam.model$finalModel
+  if(inherits(gam.model, "gam")==F) stop("Argument 'gam.model' must be an object of class 'gam'")
+  if(length(x.name)>1) x.name <- x.name[1]
+  if((x.name%in%all.vars(gam.model$call$formula)[-1])==F) stop("Variable '",x.name,"' is not in the model")
+  if((x.name%in%colnames(data))==F) stop("Variable '",x.name,"' is not in the dataset")
+  if(!is.numeric(data[,x.name])) stop("Variable '",x.name,"' is not numeric")
+  type <- match.arg(type)
+  if(is.numeric(level)) level <- max(min(1,level[1]),0)
+  if(!is.numeric(level) || is.na(level) || level==1) {
+    level <- 0.95
+    warning("Invalid argument 'level': it was set to 0.95")
+    }
+  #
+  Mode <- function(x) {
+    x_obs <- x[!is.na(x)]
+    ux <- unique(x_obs)
+    ux[which.max(tabulate(match(x_obs, ux)))]
+    }
+  #
+  ref_row <- lapply(data, function(z) {
+    if (is.numeric(z)) {
+      mean(z, na.rm = TRUE)
+      } else if (is.factor(z)) {
+      factor(as.character(Mode(z)), levels = levels(z), ordered = is.ordered(z))
+      } else if (is.character(z)) {
+      Mode(z)
+      } else if (is.logical(z)) {
+      Mode(z)
+      } else {
+      z[which(!is.na(z))[1]]
+      }
+    })
+  ref_row <- as.data.frame(ref_row, stringsAsFactors = FALSE)
+  x <- data[[x.name]]
+  if (is.numeric(x)) {
+    x_grid <- seq(min(x, na.rm = TRUE), max(x, na.rm = TRUE), length.out = n.grid)
+    } else {
+    x_grid <- if (is.factor(x)) levels(x) else sort(unique(x))
+    }
+  newdata <- ref_row[rep(1, length(x_grid)), , drop = FALSE]
+  if (is.factor(x)) {
+    newdata[[x.name]] <- factor(x_grid, levels = levels(x), ordered = is.ordered(x))
+    } else {
+    newdata[[x.name]] <- x_grid
+    }
+  zcrit <- qnorm(1-(1-level)/2)
+  form_gam <- gam.model$call$formula
+  form_glm <- as.formula(
+    gsub("s\\(([^,\\)]+).*?\\)", "\\1", paste(deparse(form_gam),collapse=" "))
+    )
+  glm.model <- update(gam.model, form_glm)
+  p1 <- predict(glm.model, newdata=newdata, type=type, se.fit=TRUE)
+  fit1 <- as.numeric(p1$fit)
+  se1  <- as.numeric(p1$se.fit)
+  lo1  <- fit1 - zcrit * se1
+  hi1  <- fit1 + zcrit * se1
+  col1_fill <- grDevices::adjustcolor("red", alpha.f=.2)
+  p2 <- predict(gam.model, newdata=newdata, type=type, se.fit=TRUE)
+  fit2 <- as.numeric(p2$fit)
+  se2  <- as.numeric(p2$se.fit)
+  lo2  <- fit2 - zcrit * se2
+  hi2  <- fit2 + zcrit * se2
+  col2_fill <- grDevices::adjustcolor("blue", alpha.f=.2)
+  if(is.null(xlab)) xlab <- x.name 
+  if(is.null(ylab)) ylab <- "Partial effect"
+  if(is.null(ylim)) ylim <- range(c(lo1,lo2,hi1,hi2))
+  plot(x_grid, fit2, type = "n", xlab=xlab, ylab=ylab, ylim=ylim, ...)
+  grid()
+  polygon(c(x_grid, rev(x_grid)), c(lo1, rev(hi1)),
+          col = col1_fill, border = NA)
+  lines(x_grid, fit1, col="red")
+  polygon(c(x_grid, rev(x_grid)), c(lo2, rev(hi2)),
+          col = col2_fill, border = NA)
+  lines(x_grid, fit2, col="blue")
+  box()
   }
 
 
@@ -718,13 +799,14 @@ multiPairPlot <- function(y.name, x.names=NULL, data, coef=1.5, outliers=TRUE, a
   }
 
 # observed versus predicted values (regression only)
-predPlot <- function(caret_fit, xlab="observed", ylab="predicted", cex=0.8, col="black",  add.grid=TRUE, show.id=FALSE, ...) {
+predPlot <- function(caret_fit, xlab="observed", ylab="predicted", cex=0.8, col="black",  add.grid=TRUE, show.row=FALSE, ...) {
   if(identical(caret_fit$modelType,"Regression")==F) stop("Implemented for regression tasks only",call.=F)
   fit <- fitted(caret_fit)
   plot(fit$observed, fit$predicted, xlab=xlab, ylab=ylab, type="n", ...)
   if(add.grid) grid()
-  if(show.id) {
-    text(fit$observed, fit$predicted, labels=fit$id, cex=cex, col=col)
+  if(show.row) {
+    #text(fit$observed, fit$predicted, labels=fit$id, cex=cex, col=col)
+    text(fit$observed, fit$predicted, labels=rownames(fit), cex=cex, col=col)
     } else {
     points(fit$observed, fit$predicted, cex=cex, col=col)
     }
