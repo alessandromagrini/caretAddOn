@@ -598,13 +598,13 @@ enetCoef <- function(caret_fit) {
   }
 
 # plot of partial effects in a gam model (reference: mean for quantitative Xs, mode for qualitative Xs)
-gamPlot <- function(gam.model, x.name, data, n.grid=100, type="link", level=0.95, xlab=NULL, ylab=NULL, ylim=NULL, ...) {
+gamPlot <- function(gam.model, x.name, n.grid=100, type="link", level=0.95, xlab=NULL, ylab=NULL, ylim=NULL, ...) {
   if(inherits(gam.model, "train")) gam.model <- gam.model$finalModel
   if(inherits(gam.model, "gam")==F) stop("Argument 'gam.model' must be an object of class 'gam'")
   if(length(x.name)>1) x.name <- x.name[1]
-  if((x.name%in%all.vars(gam.model$call$formula)[-1])==F) stop("Variable '",x.name,"' is not in the model")
-  if((x.name%in%colnames(data))==F) stop("Variable '",x.name,"' is not in the dataset")
-  if(!is.numeric(data[,x.name])) stop("Variable '",x.name,"' is not numeric")
+  x_all <- unlist(lapply(gam.model$smooth, function(z) z$term))
+  if((x.name %in% x_all)==FALSE) stop("Variable '", x.name, "' has not a spline term")
+  data <- gam.model$model
   type <- match.arg(type)
   if(is.numeric(level)) level <- max(min(1,level[1]),0)
   if(!is.numeric(level) || is.na(level) || level==1) {
