@@ -22,8 +22,9 @@ New graphics:
 - `corPlot`: correlogram, conceived to check collinearity among the explanatory variables
 - `trainPlot`: graphic displaying any one metric as a function of any one hyperparameter
 - `importancePlot`: graphic displaying variable importance metrics computed through the function `importanceCalc` (see below)
-- `rocPlot`: ROC curve (only for binary classification)
-- `densPlot`: graphic displaying kernel density estimations for class probabilities (only for binary classification), conceived to assess the discriminative power
+- `gamPlot`: graphic displaying the partial effect of a variable in a generalized additive model (class `gam`)
+- `rocPlot`: ROC curve (only for binary classification tasks)
+- `densPlot`: graphic displaying kernel density estimations for class probabilities (only for binary classification tasks), conceived to assess the discriminative power of the model
 - `predPlot`: scatterplot of observed values versus predicted values (only for regression tasks)
 
 New general-purpose functions:
