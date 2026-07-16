@@ -1,6 +1,6 @@
 export(glm_extended, gam_mgcv, svm_linear, svm_radial,
        customSummaryClass, customSummaryReg,
-       bestTune, vifCalc, enetCoef,
+       bestTune, vifCalc, enetCoef, EM_mvn,
        multiPairPlot, corPlot, trainPlot, importancePlot, gamPlot, rocPlot, densPlot, predPlot)
 
 S3method(fitted, train)

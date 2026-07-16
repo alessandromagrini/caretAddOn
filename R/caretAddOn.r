@@ -821,3 +821,348 @@ corPlot <- function(data, upper.panel=panel.cor, ...) {
     corrgram(dataOK, upper.panel=upper.panel, ...)
     )
   }
+
+
+###  EM IMPUTATION  ###
+
+# box-cox transformation (auxiliary)
+makeBoxCox <- function(x, par=NULL, a=NULL) {
+  if(is.null(a)) {
+    if(sum(x<=0,na.rm=T)==0) a <- 0 else a <- -min(x,na.rm=T)
+    if(sum(x+a==0,na.rm=T)>0) a <- a+min((x+a)[which(x+a>0)],na.rm=T)/2
+    }
+  if(is.null(par)) {
+    #f <- function(lam) {
+    #  z <- ((x+a)^lam-1)/lam
+    #  sum(dnorm(z,mean(z),sd(z),log=T),na.rm=T)
+    #  }
+    #par <- optimize(f, interval=c(-2,2), maximum=T)$maximum
+    bc <- MASS::boxcox(lm(I(x+a)~1, y=T), lambda=seq(-2,2,0.001), plotit=F)
+    par <- bc$x[which.max(bc$y)]
+    z <- ((x+a)^par-1)/par
+    } else if(par==1) {
+    a <- 0
+    z <- x
+    } else if(par==0) {
+    z <- log(x+a)  
+    } else {
+    z <- ((x+a)^par-1)/par
+    }
+  attr(z,"offset") <- a
+  attr(z,"lambda") <- par
+  z
+  }
+
+# invert box-cox transformation (auxiliary)
+invBoxCox <- function(z, par, a, ymin=NULL) {
+  if(par==1) {
+    z
+    } else {
+    if(par==0) {
+      exp(z)-a  
+      } else {
+      y <- (z*par+1)^(1/par)-a
+      if(sum(is.nan(y))>0) {
+        if(is.null(ymin)) {
+          y[which(is.na(y))] <- -a
+          } else {
+          y[which(is.na(y))] <- ymin
+          }
+        }
+      y
+      }
+    }
+  }
+
+# observed data log likelihood (auxiliary)
+obsLogLik_mvn <- function(X, R, Z, B, Sigma) {
+  n <- nrow(X)
+  ll <- 0
+  for(i in seq_len(n)) {
+    obs <- which(!R[i, ])
+    if(length(obs) == 0) next
+    mu <- as.vector(B %*% Z[i, ])
+    xo <- X[i, obs]
+    muo <- mu[obs]
+    Soo <- Sigma[obs, obs, drop=FALSE]
+    cf <- chol(Soo)
+    r <- xo - muo
+    logdet <- 2 * sum(log(diag(cf)))
+    quad <- sum(backsolve(cf, r, transpose = TRUE)^2)
+    pobs <- length(obs)
+    ll <- ll - 0.5 * (pobs * log(2*pi) + logdet + quad)
+    }
+  ll
+  }
+
+# imputation using EM algorithm
+EM_mvn <- function(x.names, data, exogenous=NULL, box.cox=1, ridge=0, tol.abs=1e-4, tol.rel=1e-8, maxit=500, quiet=FALSE) {
+  # check arguments
+  if(!is.data.frame(data)) stop("Argument 'data' must be a data.frame.")
+  x.names <- intersect(x.names, colnames(data))
+  non.quant <- x.names[!sapply(data[, x.names, drop=FALSE], is.numeric)]
+  if(length(non.quant) > 0) {
+    exogenous <- unique(c(exogenous, non.quant))
+    x.names <- setdiff(x.names, non.quant)
+    }
+  all.miss <- sapply(data[, x.names, drop=FALSE], function(x) all(is.na(x)))
+  if(any(all.miss)) {
+    aux <- which(all.miss)[1]
+    stop("Variable '", names(all.miss)[aux], "' is completely missing.")
+    }
+  x.names <- x.names[!all.miss]
+  if(length(x.names) == 0) stop("No valid quantitative variables in argument 'x.names'")
+  if(!is.null(exogenous)) {
+    exogenous <- intersect(exogenous, colnames(data))
+    ex.miss <- sapply(data[, exogenous, drop=FALSE], function(x) any(is.na(x)))
+    if(any(ex.miss)) {
+      aux <- which(ex.miss)[1]
+      stop("Variable '", names(ex.miss)[aux], "' contains missing values.")
+      }
+    }
+  if(!is.numeric(tol.abs) || length(tol.abs) != 1 || is.na(tol.abs) || tol.abs <= 0) tol.abs <- 1e-4
+  if(!is.numeric(tol.rel) || length(tol.rel) != 1 || is.na(tol.rel) || tol.rel <= 0) tol.rel <- 1e-8
+  if(!is.numeric(maxit) || length(maxit) != 1 || is.na(maxit) || maxit < 1) {
+    maxit <- 500
+    } else {
+    maxit <- as.integer(maxit)
+    }
+  if(!is.logical(quiet) || length(quiet) != 1 || is.na(quiet))
+    quiet <- FALSE
+  # single-variable case: mean imputation
+  if(length(x.names) == 1) {
+    dataI <- data
+    xname <- x.names[1]
+    dataI[is.na(dataI[, xname]), xname] <- mean(dataI[, xname], na.rm=TRUE)
+    return(list(
+      data.imputed = dataI,
+      data.original = data
+      ))
+    }
+  #
+  isBC <- offset <- rep(0,length(x.names))
+  lambda <- rep(1,length(x.names))
+  ymin <- apply(data[,x.names],2,min,na.rm=T)
+  names(isBC) <- names(lambda) <- names(offset) <- names(ymin) <- x.names
+  dataI <- data
+  auto.bc <- FALSE
+  lambda[] <- 1
+  if(is.null(box.cox) || identical(box.cox, TRUE) || (is.character(box.cox) && length(box.cox) == 1 && tolower(box.cox) == "auto")) {
+    auto.bc <- TRUE
+    } else if(is.numeric(box.cox)) {
+    if(length(box.cox) == 1) {
+      lambda[] <- box.cox
+      } else if(!is.null(names(box.cox))) {
+      valid <- names(box.cox) %in% x.names
+      lambda[names(box.cox)[valid]] <- box.cox[valid]
+      }
+    } else {
+    lambda[] <- 1
+    }
+  # box-cox transformation
+  if(auto.bc || any(lambda != 1)) {
+    if(quiet == FALSE) {
+      cat("\r")
+      cat("Performing Box-Cox transformation ...")
+      flush.console()
+      }
+    for(i in seq_along(x.names)) {
+      ix <- data[, x.names[i]]
+      if(sum(ix < 0, na.rm=TRUE) == 0) {
+        if(auto.bc) {
+          ibc <- makeBoxCox(ix)
+          } else if(lambda[x.names[i]] != 1) {
+          ibc <- makeBoxCox(ix, par=lambda[x.names[i]])
+          } else {
+          next
+          }
+        isBC[x.names[i]] <- 1
+        dataI[, x.names[i]] <- ibc
+        lambda[x.names[i]] <- attr(ibc, "lambda")
+        offset[x.names[i]] <- attr(ibc, "offset")
+        }
+      }
+    }
+  # missing indicators
+  isMiss <- matrix(nrow=nrow(data),ncol=length(x.names)) 
+  colnames(isMiss) <- x.names
+  for(i in 1:length(x.names)) {
+    isMiss[,x.names[i]] <- 1*is.na(data[,x.names[i]])
+    }
+  for(i in 1:length(x.names)) {
+    ind <- which(isMiss[,x.names[i]]==1)
+    if(length(ind)>0) dataI[ind,x.names[i]] <- mean(dataI[,x.names[i]],na.rm=T)
+    }
+  # Z: model matrix for exogenous variables
+  if (is.null(exogenous)) {
+    Z <- matrix(1, nrow(dataI), 1)
+    colnames(Z) <- "(Intercept)"
+    } else {
+    Z <- model.matrix(
+      as.formula(paste("~", paste(exogenous, collapse = "+"))),
+      data = dataI
+      )
+    }
+  X <- as.matrix(dataI[, x.names])
+  R <- as.matrix(isMiss[, x.names]) == 1
+  # initialization: univariate mean
+  Xhat <- X
+  for (j in seq_len(ncol(Xhat))) {
+    Xhat[is.na(Xhat[, j]), j] <- mean(Xhat[, j], na.rm = TRUE)
+    }
+  B <- t(solve(crossprod(Z), crossprod(Z, Xhat)))  # p x q
+  Sigma <- cov(Xhat - Z %*% t(B)) * (nrow(Xhat) - 1) / nrow(Xhat)
+  if(!is.numeric(ridge) || length(ridge) != 1 || ridge < 0) ridge <- 0
+  if(ridge > 0) {
+    Sigma <- Sigma + diag(ridge * mean(diag(Sigma)), ncol(Sigma))
+    }
+  ll.trace <- numeric(maxit)
+  ll_old <- -Inf
+  EX_old <- Xhat
+  stop.reason <- "maxiter reached"
+  # EM cycle
+  for (iter in seq_len(maxit)) {
+    EX <- X
+    EV <- array(0, dim = c(nrow(X), ncol(X), ncol(X)))
+    for (i in seq_len(nrow(X))) {
+      obs <- which(!R[i, ])
+      mis <- which(R[i, ])
+      mu <- as.vector(B %*% Z[i, ])
+      if (length(mis) == 0) {
+        EX[i, ] <- X[i, ]
+        } else if (length(obs) == 0) {
+        EX[i, mis] <- mu[mis]
+        EV[i, mis, mis] <- Sigma[mis, mis, drop = FALSE]
+        } else {
+        Soo <- Sigma[obs, obs, drop = FALSE]
+        Smo <- Sigma[mis, obs, drop = FALSE]
+        Som <- Sigma[obs, mis, drop = FALSE]
+        Smm <- Sigma[mis, mis, drop = FALSE]
+        adj <- Smo %*% solve(Soo, X[i, obs] - mu[obs])
+        EX[i, obs] <- X[i, obs]
+        EX[i, mis] <- mu[mis] + adj
+        EV[i, mis, mis] <- Smm - Smo %*% solve(Soo, Som)
+        }
+      }
+    B_new <- t(solve(crossprod(Z), crossprod(Z, EX)))
+    Sigma_new <- matrix(0, ncol(X), ncol(X))
+    for (i in seq_len(nrow(X))) {
+      e <- EX[i, ] - as.vector(B_new %*% Z[i, ])
+      Sigma_new <- Sigma_new + tcrossprod(e) + EV[i, , ]
+      }
+    Sigma_new <- Sigma_new / nrow(X)
+    if(ridge > 0) {
+      Sigma_new <- Sigma_new + diag(ridge * mean(diag(Sigma_new)), ncol(Sigma_new))
+      }
+    B_back <- B
+    Sigma_back <- Sigma
+    B <- B_new
+    Sigma <- Sigma_new
+    ll <- obsLogLik_mvn(X, R, Z, B, Sigma)
+    ll.trace[iter] <- ll
+    if (!quiet) {
+      cat("\rEM iteration ", iter, ". Log likelihood: ", ll, sep = "")
+      flush.console()
+      }
+    stop.reason <- "max_iter_reached"
+    if(iter > 1) {
+      ll.abs.change <- abs(ll - ll_old)
+      ll.rel.change <- ll.abs.change / (abs(ll_old) + .Machine$double.eps)
+      if(ll < ll_old) {
+        B <- B_back
+        Sigma <- Sigma_back
+        EX <- EX_old
+        ll <- ll_old
+        ll.trace[iter] <- ll_old
+        stop.reason <- "logLik_decreased"
+        break
+        }
+      if(ll.abs.change < tol.abs && ll.rel.change < tol.rel) {
+        stop.reason <- "convergence"
+        break
+        }
+      }
+    EX_old <- EX
+    ll_old <- ll
+    }
+  if(quiet==FALSE) {
+    cat("\n")
+    switch(stop.reason,
+           "convergence" = cat("Converged\n"),
+           "max_iter_reached" = cat("Maximum number of iterations reached\n"),
+           "logLik_decreased" = cat("Log likelihood decreased => rollback\n")
+           )
+    }
+  dataI[, x.names] <- EX
+  if(any(isBC == 1)) {
+    for(i in 1:length(x.names)) {
+      if(isBC[x.names[i]]==1) {
+        dataI[,x.names[i]] <- invBoxCox(dataI[,x.names[i]], par=lambda[x.names[i]], a=offset[x.names[i]], ymin=ymin[i])
+        }
+      }
+    }
+  ll.trace <- ll.trace[seq_len(iter)]
+  colnames(Sigma) <- rownames(Sigma) <- x.names
+  # fit errors
+  Xpred <- EX
+  MU <- Z %*% t(B)
+  Xfit <- matrix(NA, nrow=nrow(X), ncol=ncol(X))
+  colnames(Xfit) <- x.names
+  for(j in seq_along(x.names)) {
+    jj <- j
+    oo <- setdiff(seq_along(x.names), jj)
+    S_jo <- Sigma[jj, oo, drop=FALSE]
+    S_oo <- Sigma[oo, oo, drop=FALSE]
+    cf <- chol(S_oo)
+    for(i in seq_len(nrow(X))) {
+      mu <- MU[i, ]
+      x_o <- Xpred[i, oo]
+      mu_o <- mu[oo]
+      v <- backsolve(
+        cf,
+        forwardsolve(t(cf), x_o - mu_o)
+        )
+      Xfit[i, jj] <- mu[jj] + S_jo %*% v
+      }
+    }
+  fit.data <- as.data.frame(Xfit)
+  if(any(isBC == 1)) {
+    for(i in seq_along(x.names)) {
+      if(isBC[x.names[i]] == 1) {
+        fit.data[, x.names[i]] <- invBoxCox(
+          fit.data[, x.names[i]],
+          par = lambda[x.names[i]],
+          a = offset[x.names[i]],
+          ymin = ymin[i]
+          )
+        }
+      }
+    }
+  rmse <- mae <- numeric(length(x.names))
+  names(rmse) <- names(mae) <- x.names
+  sd_y <- sapply(data[, x.names, drop=FALSE], sd, na.rm=TRUE)
+  mad_y <- sapply(data[, x.names, drop=FALSE], function(x){mean(abs(x-mean(x,na.rm=T)),na.rm=T)})
+  for(i in seq_along(x.names)) {
+    ix <- !is.na(data[, x.names[i]])
+    ierr <- fit.data[ix, x.names[i]] - data[ix, x.names[i]]
+    rmse[i] <- sqrt(mean(ierr^2))
+    mae[i] <- mean(abs(ierr))
+    }
+  rel_rmse <- rmse/sd_y
+  rel_mae <- mae/mad_y
+  # output
+  list(
+    data.imputed = dataI,
+    data.original = data,
+    box.cox = cbind(lambda, offset),
+    ridge = ridge,
+    B = B, Sigma = Sigma,
+    logLik = ll,
+    error = cbind(rmse=rmse, rmse_rel=rel_rmse, mae=mae, mae_rel=rel_mae),
+    algorithm = list(
+      tol.abs = tol.abs, tol.rel = tol.rel, maxit = maxit,
+      iterations = iter, logLik.trace = ll.trace,
+      stop.reason = stop.reason
+      )
+    )
+  }
