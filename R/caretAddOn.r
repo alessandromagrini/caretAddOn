@@ -895,8 +895,18 @@ obsLogLik_mvn <- function(X, R, Z, B, Sigma) {
   ll
   }
 
+# solve function with tryCatch (auxiliary)
+solve_safe <- function(A, b) {
+  tryS <- tryCatch(solve(A, b),  error = function(e){NULL}) 
+  if(is.null(tryS)) {
+    stop("Matrix inversion failed due to near singularity")
+    } else {
+    tryS
+    }
+  }
+
 # imputation using EM algorithm
-EM_mvn <- function(x.names, data, exogenous=NULL, box.cox=1, ridge=0, tol.abs=1e-4, tol.rel=1e-8, maxit=500, quiet=FALSE) {
+mvnEM <- function(x.names, data, exogenous=NULL, box.cox=1, tol.abs=1e-4, tol.rel=1e-8, maxit=500, quiet=FALSE) {
   # check arguments
   if(!is.data.frame(data)) stop("Argument 'data' must be a data.frame.")
   x.names <- intersect(x.names, colnames(data))
@@ -1010,16 +1020,12 @@ EM_mvn <- function(x.names, data, exogenous=NULL, box.cox=1, ridge=0, tol.abs=1e
   for (j in seq_len(ncol(Xhat))) {
     Xhat[is.na(Xhat[, j]), j] <- mean(Xhat[, j], na.rm = TRUE)
     }
-  B <- t(solve(crossprod(Z), crossprod(Z, Xhat)))  # p x q
+  XtX <- crossprod(Z)
+  B <- t(solve_safe(XtX, crossprod(Z, Xhat)))
   Sigma <- cov(Xhat - Z %*% t(B)) * (nrow(Xhat) - 1) / nrow(Xhat)
-  if(!is.numeric(ridge) || length(ridge) != 1 || ridge < 0) ridge <- 0
-  if(ridge > 0) {
-    Sigma <- Sigma + diag(ridge * mean(diag(Sigma)), ncol(Sigma))
-    }
   ll.trace <- numeric(maxit)
   ll_old <- -Inf
   EX_old <- Xhat
-  stop.reason <- "maxiter reached"
   # EM cycle
   for (iter in seq_len(maxit)) {
     EX <- X
@@ -1038,22 +1044,19 @@ EM_mvn <- function(x.names, data, exogenous=NULL, box.cox=1, ridge=0, tol.abs=1e
         Smo <- Sigma[mis, obs, drop = FALSE]
         Som <- Sigma[obs, mis, drop = FALSE]
         Smm <- Sigma[mis, mis, drop = FALSE]
-        adj <- Smo %*% solve(Soo, X[i, obs] - mu[obs])
+        adj <- Smo %*% solve_safe(Soo, X[i, obs] - mu[obs])
         EX[i, obs] <- X[i, obs]
         EX[i, mis] <- mu[mis] + adj
-        EV[i, mis, mis] <- Smm - Smo %*% solve(Soo, Som)
+        EV[i, mis, mis] <- Smm - Smo %*% solve_safe(Soo, Som)
         }
       }
-    B_new <- t(solve(crossprod(Z), crossprod(Z, EX)))
+    B_new <- t(solve_safe(XtX, crossprod(Z, EX)))
     Sigma_new <- matrix(0, ncol(X), ncol(X))
     for (i in seq_len(nrow(X))) {
       e <- EX[i, ] - as.vector(B_new %*% Z[i, ])
       Sigma_new <- Sigma_new + tcrossprod(e) + EV[i, , ]
       }
     Sigma_new <- Sigma_new / nrow(X)
-    if(ridge > 0) {
-      Sigma_new <- Sigma_new + diag(ridge * mean(diag(Sigma_new)), ncol(Sigma_new))
-      }
     B_back <- B
     Sigma_back <- Sigma
     B <- B_new
@@ -1093,76 +1096,168 @@ EM_mvn <- function(x.names, data, exogenous=NULL, box.cox=1, ridge=0, tol.abs=1e
            "logLik_decreased" = cat("Log likelihood decreased => rollback\n")
            )
     }
+  ll.trace <- ll.trace[seq_len(iter)]
+  colnames(Sigma) <- rownames(Sigma) <- x.names
   dataI[, x.names] <- EX
+  dataI.orig <- dataI
+  # conditional distribution of missing values
+  missing.mu <- vector("list", nrow(X))
+  missing.Sigma <- vector("list", nrow(X))
+  for(i in seq_len(nrow(X))) {
+    mis <- which(R[i, ])
+    if(length(mis) > 0) {
+      missing.mu[[i]] <- EX[i, mis]
+      names(missing.mu[[i]]) <- x.names[mis]
+      missing.Sigma[[i]] <- EV[i, , ][mis, mis, drop = FALSE]
+      colnames(missing.Sigma[[i]]) <- rownames(missing.Sigma[[i]]) <- x.names[mis]
+      } else {
+      missing.mu[[i]] <- NULL
+      missing.Sigma[[i]] <- NULL
+      }
+    }
+  # imputation uncertainty on transformed scale
+  cond.var <- matrix(NA, nrow = nrow(X), ncol = ncol(X))
+  colnames(cond.var) <- x.names
+  for(i in seq_len(nrow(X))) {
+    mis <- which(R[i, ])
+    if(length(mis) > 0) {
+      cond.var[i, mis] <- diag(EV[i, , ][mis, mis, drop = FALSE])
+      }
+    }
+  cond.se <- sqrt(cond.var)
+  sd_z <- apply(X, 2, sd, na.rm = TRUE)
+  cond.se.rel <- sweep(cond.se, 2, sd_z, "/")
+  # back-transformation
   if(any(isBC == 1)) {
     for(i in 1:length(x.names)) {
       if(isBC[x.names[i]]==1) {
-        dataI[,x.names[i]] <- invBoxCox(dataI[,x.names[i]], par=lambda[x.names[i]], a=offset[x.names[i]], ymin=ymin[i])
+        dataI.orig[,x.names[i]] <- invBoxCox(dataI[,x.names[i]], par=lambda[x.names[i]], a=offset[x.names[i]], ymin=ymin[i])
+        if(ymin[x.names[i]] >= 0) dataI.orig[, x.names[i]] <- pmax(dataI.orig[, x.names[i]], ymin[x.names[i]])
         }
       }
     }
-  ll.trace <- ll.trace[seq_len(iter)]
-  colnames(Sigma) <- rownames(Sigma) <- x.names
-  # fit errors
-  Xpred <- EX
-  MU <- Z %*% t(B)
-  Xfit <- matrix(NA, nrow=nrow(X), ncol=ncol(X))
-  colnames(Xfit) <- x.names
-  for(j in seq_along(x.names)) {
-    jj <- j
-    oo <- setdiff(seq_along(x.names), jj)
-    S_jo <- Sigma[jj, oo, drop=FALSE]
-    S_oo <- Sigma[oo, oo, drop=FALSE]
-    cf <- chol(S_oo)
-    for(i in seq_len(nrow(X))) {
-      mu <- MU[i, ]
-      x_o <- Xpred[i, oo]
-      mu_o <- mu[oo]
-      v <- backsolve(
-        cf,
-        forwardsolve(t(cf), x_o - mu_o)
-        )
-      Xfit[i, jj] <- mu[jj] + S_jo %*% v
-      }
-    }
-  fit.data <- as.data.frame(Xfit)
+  # imputation uncertainty on original scale
+  cond.var.orig <- cond.var
+  cond.se.orig <- cond.se
   if(any(isBC == 1)) {
-    for(i in seq_along(x.names)) {
-      if(isBC[x.names[i]] == 1) {
-        fit.data[, x.names[i]] <- invBoxCox(
-          fit.data[, x.names[i]],
-          par = lambda[x.names[i]],
-          a = offset[x.names[i]],
-          ymin = ymin[i]
-          )
+    for(j in seq_along(x.names)) {
+      xname <- x.names[j]
+      if(isBC[xname] == 1) {
+        zhat <- dataI[, xname]
+        lam <- lambda[xname]
+        if(lam == 0) {
+          deriv <- exp(zhat)
+          } else {
+          deriv <- (lam * zhat + 1)^(1 / lam - 1)
+          }
+        cond.var.orig[, j] <- deriv^2 * cond.var[, j]
+        cond.se.orig[, j] <- abs(deriv) * cond.se[, j]
         }
       }
     }
-  rmse <- mae <- numeric(length(x.names))
-  names(rmse) <- names(mae) <- x.names
-  sd_y <- sapply(data[, x.names, drop=FALSE], sd, na.rm=TRUE)
-  mad_y <- sapply(data[, x.names, drop=FALSE], function(x){mean(abs(x-mean(x,na.rm=T)),na.rm=T)})
-  for(i in seq_along(x.names)) {
-    ix <- !is.na(data[, x.names[i]])
-    ierr <- fit.data[ix, x.names[i]] - data[ix, x.names[i]]
-    rmse[i] <- sqrt(mean(ierr^2))
-    mae[i] <- mean(abs(ierr))
-    }
-  rel_rmse <- rmse/sd_y
-  rel_mae <- mae/mad_y
+  sd_y <- sapply(data[, x.names, drop = FALSE], sd, na.rm = TRUE)
+  cond.se.rel.orig <- sweep(cond.se.orig, 2, sd_y, "/")
+  error_transf <- cbind(
+    rmse = sqrt(colMeans(cond.var, na.rm = TRUE)),
+    rmse_rel = sqrt(colMeans(cond.var, na.rm = TRUE))/sd_z
+    )
+  error_orig <- cbind(
+    rmse = sqrt(colMeans(cond.var.orig, na.rm = TRUE)),
+    rmse_rel = sqrt(colMeans(cond.var.orig, na.rm = TRUE))/sd_y
+    )
   # output
-  list(
-    data.imputed = dataI,
+  out <- list(
+    data.imputed = dataI.orig,
     data.original = data,
-    box.cox = cbind(lambda, offset),
-    ridge = ridge,
-    B = B, Sigma = Sigma,
+    call = list(x.names=x.names, exogenous=exogenous),
+    box.cox = list(
+      parameters = cbind(lambda, offset),
+      data.transformed = dataI[,x.names]
+      ),
+    B = B,
+    Sigma = Sigma,
     logLik = ll,
-    error = cbind(rmse=rmse, rmse_rel=rel_rmse, mae=mae, mae_rel=rel_mae),
+    missing.conditional = list(
+      mu = missing.mu,
+      Sigma = missing.Sigma
+      ),
+    imputation.rmse = error_orig,
     algorithm = list(
       tol.abs = tol.abs, tol.rel = tol.rel, maxit = maxit,
       iterations = iter, logLik.trace = ll.trace,
       stop.reason = stop.reason
       )
     )
+  class(out) <- "mvnEM"
+  out
+  }
+
+# print method for class 'mvnEM'
+print.mvnEM <- function(x, ...) {
+  cat("Multivariate normal model estimated via the EM algorithm\n")
+  cat("  (",length(x$call$x.names)," endogenous and ",length(x$call$exogenous)," exogenous variables)\n",sep="")
+  nmiss <- apply(x$data.original[,x$call$x.names],2,function(x){mean(is.na(x))})
+  cat("Average missingness per endogenous variable: ",round(100*mean(nmiss),1),"%\n",sep="")
+  cat("Average relative RMSE of imputation: ",mean(x$imputation.rmse[,"rmse_rel"],na.rm=T),"\n",sep="")
+  }
+
+# summary method for class 'mvnEM'
+summary.mvnEM <- function(object, ...) {
+  list(box.cox=object$box.cox$parameters,
+       B=object$B,
+       Sigma=object$Sigma,
+       imputation.rmse=object$imputation.rmse
+       )
+  }
+
+# simulation of complete datasets
+mvnEM_simul <- function(x, nsim = 1) {
+  if(!inherits(x, "mvnEM")) {
+    stop("Argument 'x' must be an object of class 'mvnEM'")
+    }
+  if(!is.numeric(nsim) || length(nsim) != 1 || is.na(nsim) || nsim < 1) {
+    nsim <- 1
+    }
+  nsim <- as.integer(nsim)
+  x.names <- x$call$x.names
+  missing.mu <- x$missing.conditional$mu
+  missing.Sigma <- x$missing.conditional$Sigma
+  lambda <- x$box.cox$parameters[, "lambda"]
+  offset <- x$box.cox$parameters[, "offset"]
+  out <- vector("list", nsim)
+  for(m in seq_len(nsim)) {
+    Xsim <- as.data.frame(x$box.cox$data.transformed)
+    for(i in seq_along(missing.mu)) {
+      if(!is.null(missing.mu[[i]]) && length(missing.mu[[i]]) > 0) {
+        mis.names <- names(missing.mu[[i]])
+        if(length(missing.mu[[i]]) == 1) {
+          Xsim[i, mis.names] <- rnorm(
+            n = 1,
+            mean = missing.mu[[i]],
+            sd = sqrt(missing.Sigma[[i]][1, 1])
+            )
+          } else {
+          Xsim[i, mis.names] <- MASS::mvrnorm(
+            n = 1,
+            mu = missing.mu[[i]],
+            Sigma = missing.Sigma[[i]]
+            )
+          }
+        }
+      }
+    data.sim <- x$data.original
+    for(j in seq_along(x.names)) {
+      xname <- x.names[j]
+      ymin <- min(x$data.original[, xname], na.rm = TRUE)
+      data.sim[, xname] <- invBoxCox(
+        Xsim[, xname],
+        par = lambda[xname],
+        a = offset[xname],
+        ymin = ymin
+        )
+      if(ymin >= 0) data.sim[, xname] <- pmax(data.sim[, xname], ymin)
+      }
+    out[[m]] <- data.sim
+    }
+  out
   }
