@@ -21,7 +21,7 @@ New graphics:
 - `multiPairPlot`: bivariate graphics displaying the relationship between one response variable and several explanatory variables
 - `corPlot`: correlogram, conceived to check collinearity among the explanatory variables
 - `trainPlot`: graphic displaying any one metric as a function of any one hyperparameter
-- `importancePlot`: graphic displaying variable importance metrics computed through the function `importanceCalc` (see below)
+- `importancePlot`: graphic displaying variable importance metrics computed through the function `permVarImp` (see below)
 - `gamPlot`: graphic displaying the partial effect of a variable in a generalized additive model (class `gam`)
 - `rocPlot`: ROC curve (only for binary classification tasks)
 - `densPlot`: graphic displaying kernel density estimations for class probabilities (only for binary classification tasks), conceived to assess the discriminative power of the model
@@ -30,6 +30,7 @@ New graphics:
 New general-purpose functions:
 - `bestTune`: best tuning of hyperparameters
 - `fitted` (S3 method for class `train`): cross-validation prediction for each unit
+- `permVarImp`: permutation variable importance
 - 'mvnEM': imputation of missing values based on a multivariate normal model with covariates via the EM algorithm
 - 'mvnEM_simul': simulation of complete datasets
 - `vifCalc`: computation of variance inflation factors, conceived to check collinearity among the explanatory variables
