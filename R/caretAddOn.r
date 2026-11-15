@@ -530,17 +530,18 @@ customSummaryReg <- function(data, lev = NULL, model = NULL) {
   mse <- mean((yobs-ypred)^2)
   mae <- mean(abs(yobs-ypred))
   rmse <- sqrt(mse)
-  rel_rmse <- rmse/sd(yobs,na.rm=T)
-  rel_mae <- mae/mean(abs(yobs-mean(yobs,na.rm=T)),na.rm=T)
-  if(var(ypred)>0) rsq <- (cor(yobs,ypred))^2 else rsq <- NA
-  if(sum(yobs<=0)==0) {
-    mape <- 100*mean(abs((yobs-ypred)/yobs))
-    out <- c(mse,rmse,mae,rel_rmse,rel_mae,mape,rsq)
-    names(out) <- c("MSE","RMSE","MAE","Relative_RMSE","Relative_MAE","MAPE","R-squared")
-    } else {
-    out <- c(mse,rmse,mae,rel_rmse,rel_mae,rsq)
-    names(out) <- c("MSE","RMSE","MAE","Relative_RMSE","Relative_MAE","R-squared")
+  rel_rmse <- rmse/sd(yobs, na.rm=T)
+  rel_mae <- mae/mean(abs(yobs-mean(yobs, na.rm=T)),na.rm=T)
+  rsq <- mape <- NA
+  if (length(ypred) >= 2L && var(ypred, na.rm=T) > 0) {
+    rsq <- (cor(yobs, ypred, use="pairwise.complete.obs"))^2
     }
+  segni <- unique(sign(na.omit(yobs)))
+  if (length(segni) == 1L && segni != 0) {
+    mape <- 100*mean(abs((yobs-ypred)/yobs), na.rm=T)
+    }
+  out <- c(mse,rmse,mae,rel_rmse,rel_mae,mape,rsq)
+  names(out) <- c("MSE","RMSE","MAE","Relative_RMSE","Relative_MAE","MAPE","R-squared")
   out
   }
 
@@ -677,7 +678,297 @@ gamPlot <- function(gam.model, x.name, n.grid=100, type="link", level=0.95, xlab
   }
 
 
+# permutation variable importance
+permVarImp <- function(model, data, nsim = 10, metric = NULL, ...) {
+  if (!is.numeric(nsim) || length(nsim) != 1L ||
+      !is.finite(nsim) || nsim < 1 || nsim != floor(nsim)) {
+    stop("Argument 'nsim' must be a positive integer.")
+    }
+  supported <- c("train", "glm", "lm", "rpart","randomForest", "ranger")
+  is_model <- function(x) inherits(x, supported)
+  if (is_model(model)) {
+    out <- permImp_fun(model = model, data = data, nsim = nsim, metric = metric, ...)
+    } else if (is.list(model) && length(model) > 0L && all(vapply(model, is_model, logical(1)))) {
+    impList <- lapply(model, permImp_fun, data = data, nsim = nsim, metric = metric, ...)
+    xnam <- unique(unlist(lapply(impList, function(x) names(x$estimate)), use.names = FALSE))
+    make_tab <- function(component) {
+      do.call(cbind, lapply(impList, function(x) {
+        z <- setNames(numeric(length(xnam)), xnam)
+        z[names(x[[component]])] <- x[[component]]
+        z
+        }))
+      }
+    mVet <- sapply(impList, function(x){x$metric})
+    out <- list(estimate = make_tab("estimate"), mc.error = make_tab("mc.error"), metric=mVet)
+    } else {
+    stop("Argument 'model' must be an object or a list of objects of the following classes: ",paste(supported, collapse=", "))
+    }
+  class(out) <- c("permVarImp", class(out))
+  out
+  }
+
+# function to compute permutation importance (auxiliary)
+permImp_fun <- function(model, data, nsim = 10, metric = NULL, ...) {
+  dots <- list(...)
+  event_level <- dots[["event_level", exact = TRUE]]
+  dots[["event_level"]] <- NULL
+  if (is.null(event_level)) event_level <- "second"
+  target <- dots[["target", exact = TRUE]]
+  dots[["target"]] <- NULL
+  if (!is.data.frame(data)) stop("Argument 'data' must be a data frame.")
+  if (inherits(model, "glm")) {
+    y_fit <- if (!is.null(model$terms)) all.vars(model$terms[[2L]]) else NULL
+    if (!is.null(model$obsLevels) || (identical(y_fit, ".outcome") && !".outcome" %in% names(data))) {
+      stop("The complete 'train' object must be supplied")
+      }
+    }
+  task <- if (inherits(model, "train")) {
+    if (identical(model$modelType, "Classification")) {
+      "classification"
+      } else if (identical(model$modelType, "Regression")) {
+      "regression"
+      } else {
+      stop("Unknown task '",model$modelType,"'")
+      }
+    } else if (inherits(model, "glm")) {
+    if (model$family$family %in% c("binomial", "quasibinomial")) {
+      "classification"
+      } else {
+      "regression"
+      }
+    } else if (inherits(model, "ranger")) {
+    if (model$treetype %in% c("Probability estimation", "Classification")) {
+      "classification"
+      } else if (identical(model$treetype, "Regression")) {
+      "regression"
+      } else {
+      stop("Invalid task '",model$treetype,"'")
+      }
+    } else if (inherits(model, "randomForest")) {
+    if (identical(model$type, "classification")) {
+      "classification"
+      } else if (identical(model$type, "regression")) {
+      "regression"
+      } else {
+      stop("Invalid task '",model$type,"'")
+      }
+    #
+    } else if (inherits(model, "rpart")) {
+    if (identical(model$method, "class")) {
+      "classification"
+      } else {
+      "regression"
+      }
+    } else {  ## lm
+    "regression"
+    }
+  #
+  if (is.null(target)) {
+    # use the formula, when available, only to identify the response
+    f <- model$terms
+    if (!is.null(f) && inherits(f, "formula")) {
+      candidate <- all.vars(f[[2L]])
+      if (length(candidate) == 1L && candidate %in% names(data)) target <- candidate
+      }
+    if (is.null(target) && inherits(model, "ranger")) {
+      candidate <- model$dependent.variable.name
+      if (length(candidate) == 1L && candidate %in% names(data)) target <- candidate
+      }
+    if (is.null(target)) {
+      y_train <- if (inherits(model, "train")) {
+        model$trainingData[[".outcome"]]
+        } else if (inherits(model, "randomForest")) {
+        model$y
+        } else {
+        NULL
+        }
+      if (!is.null(y_train) && length(y_train) == nrow(data)) {
+        matches <- names(data)[vapply(data, function(x) {
+          identical(unname(as.character(x)), unname(as.character(y_train)))
+          }, logical(1))]
+        if (length(matches) == 1L) target <- matches
+        }
+      }
+    if (is.null(target) && identical(task, "classification")) {
+      candidate <- names(data)[vapply(data, function(x) {
+        length(unique(stats::na.omit(x))) == 2L
+        }, logical(1))]
+      if (length(candidate) == 1L) target <- candidate
+      }
+    if (is.null(target)) stop("The response variable cannot be identified")
+    }
+  if (length(target) != 1L || !is.character(target) || !target %in% names(data)) {
+    stop("'target' must name a column in 'data'.")
+    }
+  features <- if (!is.null(model$terms)) {
+    all.vars(stats::delete.response(stats::terms(model$terms)))
+    } else if (inherits(model, "train")) {
+    if (!is.null(model$trainingData)) {
+      setdiff(names(model$trainingData), ".outcome")
+      } else {
+      model$coefnames
+      }
+    } else if (inherits(model, "ranger")) {
+    model$forest$independent.variable.names
+    } else if (inherits(model, "randomForest")) {
+    c(rownames(model$importance), names(model$importance))
+    } else {
+    NULL
+    }
+  if (!length(features)) stop("The model seems to have no predictors")
+  missing_features <- setdiff(features, names(data))
+  if (length(missing_features)) stop("Variable '", missing_features[1L], "' not found in 'data'.")
+  if (identical(task, "classification")) {
+    if (!is.factor(data[[target]])) {
+      data[[target]] <- factor(data[[target]])
+      }
+    if (nlevels(data[[target]]) != 2L) {
+      stop("For classification, the response variable must be binary")
+      }
+    event_level <- match.arg(event_level, c("second", "first"))
+    if (is.null(metric)) metric <- "roc_auc"
+    class_metrics <- c("accuracy", "bal_accuracy", "youden")
+    prob_metrics <- c("roc_auc", "pr_auc", "logloss", "brier")
+    if (!is.character(metric) || length(metric) != 1L || is.na(metric) || !metric %in% c(class_metrics, prob_metrics)) {
+      stop("Invalid metric: '",,"'. For classification, use ome among: ", paste(c(class_metrics, prob_metrics), collapse = ", "))
+      }
+    livelli <- if (inherits(model, "train")) {
+      model$levels
+      } else if (inherits(model, "glm")) {
+      y_model <- model$model[[1L]]
+      if (is.factor(y_model)) levels(y_model) else levels(data[[target]])
+      } else if (inherits(model, "ranger")) {
+      model$forest$levels
+      } else if (inherits(model, "randomForest")) {
+      levels(model$y)
+      } else {
+      attr(model, "ylevels")  # rpart
+      }
+    if (length(livelli) != 2L || !setequal(levels(data[[target]]), livelli)) {
+      stop("Response levels in 'data' are inconsistent with the model")
+      }
+    data[[target]] <- factor(as.character(data[[target]]), levels = livelli)
+    evento <- livelli[if (event_level == "second") 2L else 1L]
+    if (metric %in% prob_metrics && inherits(model, "ranger") && !identical(model$treetype, "Probability estimation")) {
+      stop("Metric '",metric,"' requires a ranger model fitted with 'probability = TRUE'")
+      }
+    pfun <- function(object, newdata) {
+      if (metric %in% prob_metrics) {
+        if (inherits(object, "glm")) {
+          p <- stats::predict(object, newdata = newdata, type = "response")
+          return(as.numeric(if (event_level == "second") p else 1 - p))
+          }
+        p <- if (inherits(object, "ranger")) {
+          predict(object, data = newdata)$predictions
+          } else {
+          predict(object, newdata = newdata, type = "prob")
+          }
+        if (!(is.matrix(p) || is.data.frame(p)) || !evento %in% colnames(p)) {
+          stop("Predictions for class '", evento, "' not found")
+          }
+        return(as.numeric(p[, evento]))
+        }
+      # accuracy, bal_accuracy, youden: predicted classes are needed
+      pred <- if (inherits(object, "glm")) {
+        p <- stats::predict(object, newdata = newdata, type = "response")
+        ifelse(p >= 0.5, livelli[2L], livelli[1L])
+        } else if (inherits(object, "ranger")) {
+        predict(object, data = newdata)$predictions
+        } else if (inherits(object, "train")) {
+        predict(object, newdata = newdata, type = "raw")
+        } else if (inherits(object, "rpart")) {
+        predict(object, newdata = newdata, type = "class")
+        } else {
+        predict(object, newdata = newdata, type = "response")
+        }
+      if (is.matrix(pred) || is.data.frame(pred)) {
+        pred <- colnames(pred)[max.col(as.matrix(pred), ties.method = "first")]
+        }
+      factor(as.character(pred), levels = livelli)
+      }
+    } else {
+    if (!is.numeric(data[[target]])) {
+      stop("The task is regression but the response variable is not numeric")
+      }
+    if (is.null(metric)) metric <- "rmse"
+    regression_metrics <- c("mae", "mape", "rmse", "rsq", "rsq_trad")
+    if (!is.character(metric) || length(metric) != 1L || is.na(metric) || !metric %in% regression_metrics) {
+      stop("Invalid regression metric. Use one among: ", paste(regression_metrics, collapse = ", "))
+      }
+    if (identical(metric, "mape")) {
+      segni <- unique(sign(na.omit(data[[target]])))
+      if (length(segni) != 1L || segni == 0) {
+        stop("Metric 'mape' is undefined. Use one among: ", paste(setdiff(regression_metrics,"mape"), collapse = ", "))
+        }
+      }
+    pfun <- function(object, newdata) {
+      p <- if (inherits(object, "ranger")) {
+        predict(object, data = newdata)$predictions
+        } else if (inherits(object, "rpart")) {
+        predict(object, newdata = newdata, type = "vector")
+        } else if (inherits(object, "glm")) {
+        stats::predict(object, newdata = newdata, type = "response")
+        } else {
+        predict(object, newdata = newdata)
+        }
+      as.numeric(p)
+      }
+    }
+  out <- do.call(vip::vi_permute, c(list(
+    object = model, train = data, target = target,
+    feature_names = features, metric = metric, nsim = nsim,
+    event_level = if (task == "classification") event_level else NULL,
+    pred_wrapper = pfun), dots))
+  out_est <- out[,"Importance"]
+  if(nsim>1) {
+    out_se <- out[,"StDev"]/sqrt(nsim)
+    } else {
+    out_se <- rep(0, nrow(out))  
+    }
+  names(out_est) <- names(out_se) <- out[,"Variable"]
+  metric_out <- if(is.null(metric)) attr(out, "metric") else metric
+  list(estimate=out_est, mc.error=out_se, metric=metric_out)
+  }
+
+# print method for class 'permVarImp'
+print.permVarImp <- function(x, digits=8, ...) {
+  cat("Permutation variable importance (metric: '",names(sort(table(x$metric))[1]),"')\n", sep="")
+  print(round(x$estimate, digits=digits))
+  }
+
+
 ###  NEW GRAPHICS  ###
+
+# plot method for class 'permVarImp'
+plot.permVarImp <- function(x, ordered = TRUE, title = "", cex.axis = 1, cex.title = 1, mgp = c(3, 0.5, 0), add.legend = TRUE, legend.pos = "topright", cex.legend = 0.9, grid.col = "grey85", grid.lty = 2, ...) {
+  est <- x$estimate
+  if(ordered) {
+    ord <- order(
+      if (is.matrix(est)) est[, 1L] else est,
+      decreasing = TRUE, na.last = TRUE)
+    est <- if (is.matrix(est)) {
+      est[ord, , drop = FALSE]
+      } else {
+      est[ord]
+      }
+    }
+  multiple <- is.matrix(est)
+  heights <- if (multiple) {
+    t(est)
+    } else {
+    matrix(as.numeric(est), nrow = 1L, dimnames = list(NULL, names(est)))
+    }
+  pos <- barplot(heights, beside = multiple, las = 2,
+    axisnames = FALSE, cex.axis = cex.axis,
+    main = title, cex.main = cex.title,
+    panel.first = grid(nx = NA, ny = NULL, col = grid.col, lty = grid.lty),
+    legend.text = multiple && add.legend,
+    args.legend = list(x = legend.pos, bty = "n", cex = cex.legend)
+    )
+  centri <- if (is.matrix(pos)) colMeans(pos) else pos
+  axis(1, at = centri, labels = colnames(heights),
+    tick = FALSE, las = 2, cex.axis = cex.axis, mgp = mgp)
+  }
 
 # plot of grid search
 trainPlot <- function(caret_fit, par=NULL, metric=NULL, ylab=NULL, xlab=NULL, vcol="red", ...) {
@@ -687,22 +978,6 @@ trainPlot <- function(caret_fit, par=NULL, metric=NULL, ylab=NULL, xlab=NULL, vc
   if(is.null(xlab)) xlab <- par
   plot(caret_fit$results[,par], caret_fit$results[,metric], ylab=ylab, xlab=xlab, type="l", ...)
   abline(v=caret_fit$bestTune[1,par], col=vcol)
-  }
-
-# plot of variable importance
-importancePlot <- function(caret_fit, scale=TRUE, ordered=TRUE, ylab="", add.grid=TRUE, line.lty=1, cex.points=0.8, cex.names=0.8, dist.names=0.5, ...) {
-  auximp <- varImp(caret_fit, scale=scale)$importance
-  imp <- auximp[,1]
-  names(imp) <- rownames(auximp)
-  if(ordered) imp <- sort(imp, decreasing=T)
-  if(!is.null(imp)) {
-    plot(imp, type="n", xaxt="n", xlab="", ylab=ylab, ...)
-    if(add.grid) grid()
-    points(imp, cex=cex.points, ...)
-    segments(1:length(imp), 0, 1:length(imp), imp, lty=line.lty)
-    axis(1, at=1:length(imp), labels=names(imp), las=2, cex.axis=cex.names, tick=F, mgp=c(3,dist.names,0))
-    box()
-    }
   }
 
 # roc curve (binary classification only)
