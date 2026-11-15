@@ -17,21 +17,21 @@ New summaries:
 - `customSummaryClass`: summary for classification tasks, including AUC and optimized specificity/sensitivity in case of class imbalance
 - `customSummaryReg`: summary for regression tasks, including RMSE, MAE, MAPE, and R-squared
 
-New graphics:
-- `multiPairPlot`: bivariate graphics displaying the relationship between one response variable and several explanatory variables
-- `corPlot`: correlogram, conceived to check collinearity among the explanatory variables
-- `trainPlot`: graphic displaying any one metric as a function of any one hyperparameter
-- `importancePlot`: graphic displaying variable importance metrics computed through the function `permVarImp` (see below)
-- `gamPlot`: graphic displaying the partial effect of a variable in a generalized additive model (class `gam`)
-- `rocPlot`: ROC curve (only for binary classification tasks)
-- `densPlot`: graphic displaying kernel density estimations for class probabilities (only for binary classification tasks), conceived to assess the discriminative power of the model
-- `predPlot`: scatterplot of observed values versus predicted values (only for regression tasks)
-
 New general-purpose functions:
 - `bestTune`: best tuning of hyperparameters
 - `fitted` (S3 method for class `train`): cross-validation prediction for each unit
 - `permVarImp`: permutation variable importance
 - 'mvnEM': imputation of missing values based on a multivariate normal model with covariates via the EM algorithm
 - 'mvnEM_simul': simulation of complete datasets
+
+New graphics:
+- `multiPairPlot`: bivariate graphics displaying the relationship between one response variable and several explanatory variables
+- `corPlot`: correlogram, conceived to check collinearity among the explanatory variables
+- `trainPlot`: graphic displaying any one metric as a function of any one hyperparameter
+- `permVarImp.plot`: graphic displaying variable importance metrics computed through the function `permVarImp`
+- `gamPlot`: graphic displaying the partial effect of a variable in a generalized additive model (class `gam`)
+- `rocPlot`: ROC curve (only for binary classification tasks)
+- `densPlot`: graphic displaying kernel density estimations for class probabilities (only for binary classification tasks), conceived to assess the discriminative power of the model
+- `predPlot`: scatterplot of observed values versus predicted values (only for regression tasks)
 - `vifCalc`: computation of variance inflation factors, conceived to check collinearity among the explanatory variables
 - `enetCoef`: coefficients at best tuning of hyperparameters for an object of class `glmnet`
