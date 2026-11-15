@@ -348,9 +348,7 @@ gam_mgcv <- list(
         v
         }
       }, character(1))
-    form <- as.formula(
-      paste(".outcome ~", paste(rhs, collapse = " + "))
-      )
+    form <- as.formula(paste(".outcome ~", paste(rhs, collapse = " + ")))
     if (is.factor(y)) {
       if (length(levels(y)) != 2) {
         stop("Implemented for binary classification tasks only")
@@ -1014,7 +1012,7 @@ densPlot <- function(caret_fit, main="", lty=c(1,1), lwd=c(1,1), col=c("blue","r
   }
 
 # multiple bivariate plots
-multiPairPlot <- function(y.name, x.names=NULL, data, coef=1.5, outliers=TRUE, axis.size=6, label.size=10, point.size=0.6, smooth.method="gam", smooth.size=0.6, smooth.color="blue", ...) {
+multiPairPlot <- function(y.name, x.names=NULL, data, coef=1.5, outliers=TRUE, axis.size=6, label.size=10, point.size=0.6, smooth.size=0.6, smooth.color="blue", ...) {
   if(!is.logical(outliers)) outliers <- F else outliers <- outliers[1]
   if(is.null(x.names)) x.names <- colnames(data)
   yaux <- intersect(y.name,colnames(data))
@@ -1024,15 +1022,30 @@ multiPairPlot <- function(y.name, x.names=NULL, data, coef=1.5, outliers=TRUE, a
   y.name <- yaux[1]
   pp <- list()
   if(is.numeric(data[,y.name])) {
-    for(i in 1:length(x.names)) {
-      pp[[i]] <- eval(substitute(
-        ggplot() +
-          geom_point(aes(y=data[,y.name],x=data[,x.names[i]]), size=point.size, ...) +
-          geom_smooth(aes(y=data[,y.name],x=data[,x.names[i]]), formula=y~x, size=smooth.size, color=smooth.color, se=T, na.rm=T, method=smooth.method) +
-          labs(x=x.names[i], y=y.name) +
-          theme(axis.text=element_text(size=axis.size),
-                axis.title=element_text(size=label.size))
-        ), list(i=i))
+    for (i in seq_along(x.names)) {
+      idat <- data.frame(x = data[[x.names[i]]], y = data[[y.name]])
+      smooth_layer <- NULL
+      if (is.numeric(idat$x)) {
+        iok <- is.finite(idat$x) & is.finite(idat$y)
+        iuni <- length(unique(idat$x[iok]))
+        if (iuni >= 4) {
+          formula_smooth <- as.formula(sprintf("y ~ s(x, bs = 'cs', k = %d)", min(10L, iuni)))
+          metodo_smooth <- "gam"
+          } else if (iuni >= 2) {
+          formula_smooth <- y ~ x
+          metodo_smooth <- "lm"
+          }
+        if (iuni >= 2) {
+          smooth_layer <- geom_smooth(data = idat[iok, , drop = FALSE],
+            formula = formula_smooth, method = metodo_smooth,
+            linewidth = smooth.size, color = smooth.color, se = TRUE)
+          }
+        }
+      pp[[i]] <- ggplot(idat, aes(x = .data[["x"]], y = .data[["y"]])) +
+        geom_point(size = point.size, ...) +
+        smooth_layer +
+        labs(x = x.names[i], y = y.name) +
+        theme(axis.text = element_text(size = axis.size), axis.title = element_text(size = label.size))
       }
     } else {
     for(i in 1:length(x.names)) {
